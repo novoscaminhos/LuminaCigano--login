@@ -132,6 +132,43 @@ const CardVisual: React.FC<{
   );
 };
 
+const ConceptAccordion: React.FC<{ 
+  concept: { title: string; text: string; example?: string; details?: string }; 
+  darkMode: boolean;
+  isOpen: boolean;
+  onToggle: () => void;
+}> = ({ concept, darkMode, isOpen, onToggle }) => {
+  return (
+    <div className={`${darkMode ? 'bg-slate-900/40 border-white/5' : 'bg-white border-slate-200 shadow-sm'} border rounded-2xl overflow-hidden transition-all duration-300`}>
+      <div 
+        onClick={concept.details ? onToggle : undefined} 
+        className={`p-6 ${concept.details ? 'cursor-pointer hover:bg-slate-800/10' : ''} flex flex-col`}
+      >
+        <div className="flex items-center justify-between mb-2">
+          <h4 className={`text-xs font-bold uppercase tracking-widest ${darkMode ? 'text-indigo-400' : 'text-indigo-800'}`}>{concept.title}</h4>
+          {concept.details && (
+            <div className={`${darkMode ? 'text-slate-500' : 'text-slate-400'} transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`}>
+              <ChevronDown size={16} />
+            </div>
+          )}
+        </div>
+        <p className={`text-sm leading-relaxed mb-2 ${darkMode ? 'text-slate-300' : 'text-slate-700'}`}>{concept.text}</p>
+        {concept.example && <p className="text-xs text-slate-500 italic">Ex: {concept.example}</p>}
+      </div>
+      
+      {concept.details && (
+        <div className={`overflow-hidden transition-all duration-500 ease-in-out ${isOpen ? 'max-h-[500px] opacity-100' : 'max-h-0 opacity-0'}`}>
+          <div className={`px-6 pb-6 pt-2 border-t ${darkMode ? 'border-white/5 bg-black/10' : 'border-slate-100 bg-slate-50/50'} prose prose-sm max-w-none`}>
+            <div className={`text-[13px] leading-relaxed whitespace-pre-wrap ${darkMode ? 'text-slate-400' : 'text-slate-600'}`}>
+              {concept.details}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 // ===============================
 // App Principal
 // ===============================
@@ -176,6 +213,8 @@ const App: React.FC = () => {
   const [showCardPicker, setShowCardPicker] = useState(false);
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [cardAnalysis, setCardAnalysis] = useState<string | null>(null);
+
+  const [openConceptId, setOpenConceptId] = useState<string | null>(null);
 
   const boardRef = useRef<HTMLDivElement>(null);
 
@@ -337,7 +376,7 @@ const App: React.FC = () => {
            {!sidebarCollapsed && <h1 className={`text-xs font-bold font-cinzel ${darkMode ? 'text-indigo-100' : 'text-indigo-950'}`}>LUMINA</h1>}
            <button onClick={() => setSidebarCollapsed(!sidebarCollapsed)} className={`p-2 rounded-lg ${darkMode ? 'text-slate-500 hover:text-white' : 'text-slate-500 hover:text-slate-900'}`}>{sidebarCollapsed ? <ChevronRight size={18}/> : <ChevronLeft size={18}/>}</button>
         </div>
-        <nav className="flex-grow px-2 space-y-2 overflow-y-auto custom-scrollbar">
+        <nav className="px-2 space-y-2 overflow-y-auto custom-scrollbar shrink-0">
           <NavItem icon={<LayoutGrid size={18}/>} label="Mesa Real" active={view === 'board' && spreadType === 'mesa-real'} collapsed={sidebarCollapsed} onClick={() => {setView('board'); setSpreadType('mesa-real'); setIsManualMode(false);}} darkMode={darkMode} />
           <NavItem icon={<Clock size={18}/>} label="Relógio" active={view === 'board' && spreadType === 'relogio'} collapsed={sidebarCollapsed} onClick={() => {setView('board'); setSpreadType('relogio'); setIsManualMode(false);}} darkMode={darkMode} />
           <NavItem icon={<Book size={18}/>} label="Glossário" active={view === 'glossary'} collapsed={sidebarCollapsed} onClick={() => setView('glossary')} darkMode={darkMode} />
@@ -345,7 +384,23 @@ const App: React.FC = () => {
           <NavItem icon={<Edit3 size={18}/>} label="Personalizada" active={view === 'board' && isManualMode} collapsed={sidebarCollapsed} onClick={() => {setView('board'); setIsManualMode(true);}} darkMode={darkMode} />
           <NavItem icon={<GraduationCap size={18}/>} label="Modo Estudo" active={view === 'study'} collapsed={sidebarCollapsed} onClick={() => setView('study')} darkMode={darkMode} />
         </nav>
-        <div className="p-4 border-t border-slate-800 space-y-2">
+
+        {/* LOGO LUMINA ADICIONADO - AGORA CENTRALIZADO NO ESPAÇO DISPONÍVEL */}
+        {!sidebarCollapsed && (
+          <div className="flex-grow flex items-center justify-center px-6 min-h-0">
+            <div className="relative group transition-all duration-700">
+               {/* Sombra Glow adaptativa ao tema */}
+               <div className={`absolute inset-0 rounded-full blur-3xl opacity-25 transition-all duration-700 ${darkMode ? 'bg-indigo-400' : 'bg-indigo-600'}`} />
+               <img 
+                 src="https://kehebufapvrmuzaovnzh.supabase.co/storage/v1/object/public/lenormand-cards/LOGO.png" 
+                 alt="Lumina Logo" 
+                 className={`relative z-10 w-32 h-auto object-contain transition-transform duration-500 hover:scale-105 drop-shadow-[0_10px_20px_rgba(0,0,0,0.4)] ${darkMode ? 'brightness-110 contrast-110' : ''}`}
+               />
+            </div>
+          </div>
+        )}
+
+        <div className="p-4 border-t border-slate-800 space-y-2 shrink-0">
           {['Salvar', 'Exportar', 'Tema', 'Perfil'].map((label, idx) => (
             <div key={idx} className="relative w-full">
               <button 
@@ -396,7 +451,7 @@ const App: React.FC = () => {
                    <button onClick={() => setSpreadType('relogio')} className={`px-3 py-1 rounded-lg text-[8px] font-bold uppercase transition-all ${spreadType === 'relogio' ? 'bg-indigo-500 text-white' : darkMode ? 'bg-slate-800 text-slate-500' : 'bg-slate-200 text-slate-700 font-bold'}`}>Relógio</button>
                  </div>
                )}
-               <div className={`flex p-1 rounded-xl border ${darkMode ? 'bg-slate-800/20 border-white/5' : 'bg-slate-200/80 border-slate-300'}`}>
+               <div className={`flex p-1 rounded-xl border ${darkMode ? 'bg-slate-800/20 border-white/5' : 'bg-white border-slate-200 shadow-sm'} border shadow-sm`}>
                  {(['nenhuma', 'ponte', 'cavalo', 'moldura', 'veredito', 'diagonais', 'todas'] as GeometryFilter[]).map(f => (
                    <button key={f} onClick={() => toggleFilter(f)} className={`px-3 py-1 rounded-lg text-[8px] font-black uppercase transition-all ${geometryFilters.has(f) ? 'bg-indigo-600 text-white' : darkMode ? 'text-slate-500 hover:text-slate-200' : 'text-slate-700 hover:text-slate-950'}`}>{f}</button>
                  ))}
@@ -482,18 +537,27 @@ const App: React.FC = () => {
           )}
 
           {view === 'fundamentals' && (
-            <div className="max-w-4xl mx-auto space-y-12">
+            <div className="max-w-4xl mx-auto space-y-12 pb-20">
               {FUNDAMENTALS_DATA.map(mod => (
                 <div key={mod.id} className="space-y-6">
-                  <div><h3 className={`text-xl font-cinzel font-bold ${darkMode ? 'text-indigo-100' : 'text-indigo-950'}`}>{mod.title}</h3><p className="text-slate-400 text-sm">{mod.description}</p></div>
+                  <div>
+                    <h3 className={`text-xl font-cinzel font-bold ${darkMode ? 'text-indigo-100' : 'text-indigo-950'}`}>{mod.title}</h3>
+                    <p className="text-slate-400 text-sm">{mod.description}</p>
+                    <p className="text-slate-500 text-xs mt-1 italic">{mod.content}</p>
+                  </div>
                   <div className="grid gap-4">
-                    {mod.concepts.map((concept, i) => (
-                      <div key={i} className={`${darkMode ? 'bg-slate-900/40 border-white/5' : 'bg-white border-slate-200 shadow-sm'} border p-6 rounded-2xl`}>
-                        <h4 className={`text-xs font-bold uppercase tracking-widest ${darkMode ? 'text-indigo-400' : 'text-indigo-800'} mb-2`}>{concept.title}</h4>
-                        <p className={`text-sm leading-relaxed mb-2 ${darkMode ? 'text-slate-300' : 'text-slate-700'}`}>{concept.text}</p>
-                        {concept.example && <p className="text-xs text-slate-500 italic">Ex: {concept.example}</p>}
-                      </div>
-                    ))}
+                    {mod.concepts.map((concept, i) => {
+                      const conceptId = `${mod.id}-c-${i}`;
+                      return (
+                        <ConceptAccordion 
+                          key={conceptId}
+                          concept={concept}
+                          darkMode={darkMode}
+                          isOpen={openConceptId === conceptId}
+                          onToggle={() => setOpenConceptId(openConceptId === conceptId ? null : conceptId)}
+                        />
+                      );
+                    })}
                   </div>
                 </div>
               ))}
@@ -624,7 +688,7 @@ const App: React.FC = () => {
                           <div className={`p-4 rounded-2xl border ${darkMode ? 'bg-amber-500/5 border-amber-500/20' : 'bg-amber-50 border-amber-200 shadow-sm'}`}>
                             <h5 className="text-[13px] font-black text-amber-700 uppercase flex items-center gap-2 mb-2"><GitMerge size={12}/> Técnica da Ponte</h5>
                             <p className={`text-[13px] leading-snug ${darkMode ? 'text-slate-400' : 'text-slate-900'}`}>O dono da Casa {selectedHouse + 1} ({currentHouse?.name}) está na <span className={`font-bold ${darkMode ? 'text-white' : 'text-slate-950 underline decoration-indigo-300'}`}>Casa {bridgeData.houseId} ({bridgeData.house.name})</span> com a carta <span className={`font-bold ${darkMode ? 'text-white' : 'text-slate-950'}`}>{bridgeData.card?.name}</span>.</p>
-                            <p className={`text-[12px] mt-2 italic ${darkMode ? 'text-slate-500' : 'text-slate-700 font-medium'}`}>A Casa {bridgeData.houseId} indica que: "{bridgeData.house.technicalDescription}"</p>
+                            <p className={`text-[12px] mt-2 italic ${darkMode ? 'text-slate-500' : 'text-slate-700'}`}>A Casa {bridgeData.houseId} indica que: "{bridgeData.house.technicalDescription}"</p>
                           </div>
                         )}
 
@@ -636,7 +700,7 @@ const App: React.FC = () => {
                               {knightData.map((item, i) => (
                                 <div key={i} className={`${darkMode ? 'bg-black/20 border-white/5' : 'bg-white border-slate-200 shadow-sm'} p-2 rounded-lg border`}>
                                   <div className="flex justify-between items-center mb-1"><span className={`text-[13px] font-bold ${darkMode ? 'text-white' : 'text-slate-950'}`}>{item.card?.name}</span><span className="text-[11px] text-slate-600 font-black uppercase">Casa {item.houseId}</span></div>
-                                  <p className={`text-[11px] italic leading-tight ${darkMode ? 'text-slate-400' : 'text-slate-800 font-medium'}`}>"{item.card?.briefInterpretation}"</p>
+                                  <p className={`text-[11px] italic leading-tight ${darkMode ? 'text-slate-400' : 'text-slate-800'}`}>"{item.card?.briefInterpretation}"</p>
                                 </div>
                               ))}
                             </div>
@@ -667,7 +731,7 @@ const App: React.FC = () => {
 
                         {/* MOLDURA SEGMENTADA */}
                         {frameData && (
-                          <div className={`p-4 rounded-2xl border ${darkMode ? 'bg-indigo-500/5 border-indigo-500/10' : 'bg-indigo-50 border-indigo-100 shadow-sm'}`}>
+                          <div className={`p-4 rounded-2xl border ${darkMode ? 'bg-indigo-500/5 border-indigo-500/20' : 'bg-indigo-50 border-indigo-200 shadow-sm'}`}>
                             <h5 className="text-[13px] font-black text-indigo-800 uppercase flex items-center gap-2 mb-3"><Frame size={12}/> Posicionamento de Moldura</h5>
                             <div className="space-y-3">
                               <div><span className="text-[11px] font-black text-indigo-600 uppercase block mb-1">Moldura Superior (1 & 8):</span><div className="grid grid-cols-2 gap-2">{frameData.superior.map((f, i) => f.card && <div key={i} className={`${darkMode ? 'bg-indigo-500/10' : 'bg-white border border-indigo-200 shadow-sm'} p-1.5 rounded`}><span className={`text-[12px] font-bold block ${darkMode ? 'text-white' : 'text-slate-950'}`}>{f.card.name} (C{f.houseId})</span><p className={`text-[11px] italic mt-0.5 leading-tight ${darkMode ? 'text-slate-500' : 'text-slate-800'}`}>"{f.card.briefInterpretation}"</p></div>)}</div></div>
@@ -742,7 +806,7 @@ const App: React.FC = () => {
                       {isAiLoading ? <Loader2 size={16} className="animate-spin" /> : <Wand2 size={16} />}
                       <span>EXPANDIR LEITURA (MENTOR IA)</span>
                     </button>
-                    {cardAnalysis && <div className={`mt-4 rounded-3xl p-6 border shadow-2xl animate-in slide-in-from-bottom-4 duration-700 ${darkMode ? 'bg-slate-950/80 border-slate-800' : 'bg-white border-slate-200'}`}><div className={`prose prose-sm ${darkMode ? 'prose-invert' : ''} text-[12px] leading-relaxed whitespace-pre-wrap ${darkMode ? '' : 'text-slate-950 font-medium'}`}>{cardAnalysis}</div></div>}
+                    {cardAnalysis && <div className={`mt-4 rounded-3xl p-6 border shadow-2xl animate-in slide-in-from-bottom-4 duration-700 ${darkMode ? 'bg-slate-950/80 border-slate-800' : 'bg-white border-slate-200'}`}><div className={`prose prose-sm ${darkMode ? 'prose-invert' : ''} text-[12px] leading-relaxed whitespace-pre-wrap ${darkMode ? '' : 'text-slate-950'}`}>{cardAnalysis}</div></div>}
                   </div>
                 </>
               ) : (

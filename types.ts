@@ -60,5 +60,5 @@ export interface FundamentalModule {
   title: string;
   description: string;
   content: string;
-  concepts: { title: string; text: string; example?: string }[];
+  concepts: { title: string; text: string; example?: string; details?: string }[];
 }

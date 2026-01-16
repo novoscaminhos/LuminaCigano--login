@@ -1,4 +1,3 @@
-
 import { LenormandCard, LenormandHouse, Polarity, Timing, FundamentalModule } from './types';
 
 export const GEOMETRY_GUIDE = {
@@ -145,10 +144,30 @@ export const FUNDAMENTALS_DATA: FundamentalModule[] = [
     description: 'Interpretação da jornada cíclica dos 12 meses.',
     content: 'Estrutura astrológica aplicada ao Lenormand.',
     concepts: [
-      { title: 'JORNADA DOS 12 MESES', text: 'Cada uma das 12 casas exteriores representa um mês (Janeiro a Dezembro) e uma área da vida inspirada no zodíaco.', example: 'Casa 1 (Eu), Casa 4 (Lar), Casa 7 (Parcerias).' },
-      { title: 'EIXOS DE OPOSIÇÃO (Eixos do Tempo)', text: 'As cartas opostas (180°) revelam tensões e equilíbrios. O que você planta num mês (Casa 1) reverbera na oposição (Casa 7).', example: 'Eixo 1-7 (Eu vs Outro), Eixo 4-10 (Vida Privada vs Carreira).' },
-      { title: 'O TOM DA LEITURA (13ª CARTA)', text: 'A carta central é o "Coração da Mandala". Ela dita a vibração predominante, o clima e o conselho mestre para todo o ciclo anual.', example: 'Se o Sol cai no centro, o ano é de clareza e sucesso independente das casas individuais.' },
-      { title: 'SÍNTESE TRIMESTRAL', text: 'Agrupar casas de 3 em 3 para entender as estações do ano e os grandes movimentos de energia.', example: 'Jan-Mar (Início/Plantio), Abr-Jun (Crescimento/Base).' }
+      { 
+        title: 'JORNADA DOS 12 MESES', 
+        text: 'Cada uma das 12 casas exteriores representa um mês (Janeiro a Dezembro) e uma área da vida inspirada no zodíaco.', 
+        example: 'Casa 1 (Eu), Casa 4 (Lar), Casa 7 (Parcerias).',
+        details: "**Temporalidade Cíclica:** O relógio não para. Se um evento não se resolve em um mês, ele transborda para o próximo como experiência acumulada, criando uma narrativa de continuidade através do ano.\n\n**Ritmo das Cartas:** Analise a cor predominante no mês. Cartas Verdes (Rápidas) indicam períodos de agitação e decisões imediatas. Cartas Vermelhas (Lentas) sinalizam meses de consolidação, espera estratégica ou maturação forçada de planos."
+      },
+      { 
+        title: 'EIXOS DE OPOSIÇÃO (Eixos do Tempo)', 
+        text: 'As cartas opostas (180°) revelam tensões e equilíbrios. O que você planta num mês (Casa 1) reverbera na oposição (Casa 7).', 
+        example: 'Eixo 1-7 (Eu vs Outro), Eixo 4-10 (Vida Privada vs Carreira).',
+        details: "**Leitura de Oposição e Equilíbrio:** Verifique se as cartas opostas (180°) criam um conflito ou uma parceria. Uma carta negativa na Casa 1 confrontada por uma positiva na Casa 7 sugere que, embora o Consulente esteja em crise pessoal, a solução ou apoio virá de fontes externas ou relacionamentos.\n\n**Andamento sem Concretização:** É possível que o ciclo mostre muito movimento (Pássaros, Cavaleiro), mas sem uma carta de fixação (Âncora, Casa) no mesmo semestre, indicando que o projeto avança mas não se estabelece definitivamente neste ciclo."
+      },
+      { 
+        title: 'O TOM DA LEITURA (13ª CARTA)', 
+        text: 'A carta central é o "Coração da Mandala". Ela dita a vibração predominante, o clima e o conselho mestre para todo o ciclo anual.', 
+        example: 'Se o Sol cai no centro, o ano é de clareza e sucesso independente das casas individuais.',
+        details: "**Presença e Ausência da Carta Esperada:** Se o Consulente busca um tema específico (ex: Trabalho) e a carta 'Âncora' não aparece nem nas 12 casas nem no Tom, indica que o tema não será o foco central do ano, agindo apenas como pano de fundo sem grandes marcos.\n\n**O Coração do Ciclo:** O Tom central funciona como o filtro de todas as outras 12 casas. Se o Tom for positivo, mesmo meses desafiadores serão encarados com resiliência, servindo a um propósito maior de crescimento."
+      },
+      { 
+        title: 'SÍNTESE TRIMESTRAL', 
+        text: 'Agrupar casas de 3 em 3 para entender as estações do ano e os grandes movimentos de energia.', 
+        example: 'Jan-Mar (Início/Plantio), Abr-Jun (Crescimento/Base).',
+        details: "**Estações do Destino:** O primeiro trimestre (Jan-Mar) dita o impulso inicial. Se as cartas aqui forem 'travadas' (Montanha, Torre), o ritmo de todo o ano tende a ser mais lento, exigindo mais esforço inicial para romper a inércia do ciclo.\n\n**Concretização por Trimestre:** Verifique em qual período a carta de fechamento aparece para identificar a 'estação da vitória' ou de colheita definitiva dos esforços."
+      }
     ]
   },
   {
