@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { 
   LayoutGrid, RotateCcw, Sparkles, ChevronRight, ChevronLeft, BookOpen, 
@@ -39,7 +38,7 @@ const Balloon: React.FC<{ balloon: StudyBalloon; darkMode: boolean; onDismiss: (
   }, [onDismiss]);
 
   return (
-    <div className={`fixed bottom-20 left-1/2 -translate-x-1/2 z-[100] w-full max-w-sm p-4 rounded-2xl shadow-2xl border animate-in slide-in-from-bottom-4 duration-500 ${darkMode ? 'bg-indigo-950/90 border-indigo-500/30 text-white' : 'bg-white border-indigo-200 text-slate-900 shadow-indigo-500/20'}`}>
+    <div className={`fixed bottom-20 left-1/2 -translate-x-1/2 z-[100] w-full max-sm:px-4 max-w-sm p-4 rounded-2xl shadow-2xl border animate-in slide-in-from-bottom-4 duration-500 ${darkMode ? 'bg-indigo-950/90 border-indigo-500/30 text-white' : 'bg-white border-indigo-200 text-slate-900 shadow-indigo-500/20'}`}>
       <div className="flex items-start gap-3">
         <div className="p-2 bg-indigo-500/20 rounded-lg text-indigo-400 shrink-0"><Lightbulb size={18}/></div>
         <div>
@@ -164,7 +163,6 @@ const ConceptAccordion: React.FC<{
       </div>
       
       {isOpen && (
-        /* Fix: CSS classes in ternary expression must be wrapped in quotes to be interpreted as strings, fixing line 166 and cascading errors on line 180 */
         <div className={`px-6 pb-6 pt-2 border-t ${darkMode ? 'border-white/5 bg-black/10' : 'border-slate-100 bg-slate-50/50'} animate-in fade-in duration-300`}>
           <div className={`text-[13px] leading-relaxed whitespace-pre-wrap mb-6 ${darkMode ? 'text-slate-400' : 'text-slate-600'}`}>
             {concept.details}
@@ -187,8 +185,9 @@ const ConceptAccordion: React.FC<{
 // App Principal
 // ===============================
 const App: React.FC = () => {
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [mentorPanelOpen, setMentorPanelOpen] = useState(true);
+  // Ajuste inicial para mobile: barras laterais fechadas por padrão
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
+  const [mentorPanelOpen, setMentorPanelOpen] = useState(false);
   
   // Lógica de Temas
   const [themeMode, setThemeMode] = useState<'light' | 'dark' | 'system'>(() => (localStorage.getItem('lumina_theme') as any) || 'system');
@@ -217,6 +216,9 @@ const App: React.FC = () => {
   
   const [board, setBoard] = useState<(number | null)[]>([]);
   const [firstDrawBoard, setFirstDrawBoard] = useState<(number | null)[] | null>(null);
+  const [secondDrawBoard, setSecondDrawBoard] = useState<(number | null)[] | null>(null);
+  const [isViewingFirstDraw, setIsViewingFirstDraw] = useState(false);
+
   const [selectedHouse, setSelectedHouse] = useState<number | null>(null);
   const [geometryFilters, setGeometryFilters] = useState<Set<GeometryFilter>>(new Set(['nenhuma']));
   const [showCardPicker, setShowCardPicker] = useState(false);
@@ -328,13 +330,15 @@ const App: React.FC = () => {
     const newBoard = generateShuffledArray(36);
     setBoard(newBoard);
     setFirstDrawBoard(null);
+    setSecondDrawBoard(null);
+    setIsViewingFirstDraw(false);
     setTimeout(() => setIsAnimating(false), 1000);
   };
 
   const handleSecondDraw = () => {
     if (spreadType !== 'relogio') return;
     setIsAnimating(true);
-    // Guarda o histórico das 13 cartas mostradas
+    // Guarda o histórico das 13 cartas mostradas (12 casas + centro)
     const currentDraw = board.slice(0, 13);
     setFirstDrawBoard([...currentDraw]);
     
@@ -342,9 +346,11 @@ const App: React.FC = () => {
     const usedIds = currentDraw.filter(id => id !== null) as number[];
     const nextDraw = generateShuffledArray(13, usedIds);
     
-    // Atualiza o board principal com as 13 novas cartas, mantendo o restante nulo para consistência
+    // Atualiza o board principal com as 13 novas cartas
     const updatedBoard = [...nextDraw, ...new Array(23).fill(null)];
     setBoard(updatedBoard);
+    setSecondDrawBoard(updatedBoard); // Salva para permitir alternar
+    setIsViewingFirstDraw(false);
     setSelectedHouse(null);
     setTimeout(() => setIsAnimating(false), 1000);
   };
@@ -352,17 +358,25 @@ const App: React.FC = () => {
   const handleClearSpread = () => {
     setBoard(new Array(36).fill(null));
     setFirstDrawBoard(null);
+    setSecondDrawBoard(null);
+    setIsViewingFirstDraw(false);
   };
 
-  const handleRevertToFirstDraw = () => {
-    if (firstDrawBoard) {
-      setIsAnimating(true);
+  const handleToggleDraws = () => {
+    if (!firstDrawBoard || !secondDrawBoard) return;
+    setIsAnimating(true);
+    if (isViewingFirstDraw) {
+      // Voltando para a 2ª tiragem
+      setBoard([...secondDrawBoard]);
+      setIsViewingFirstDraw(false);
+    } else {
+      // Revendo a 1ª tiragem
       const restored = [...firstDrawBoard, ...new Array(23).fill(null)];
       setBoard(restored);
-      setFirstDrawBoard(null);
-      setSelectedHouse(null);
-      setTimeout(() => setIsAnimating(false), 1000);
+      setIsViewingFirstDraw(true);
     }
+    setSelectedHouse(null);
+    setTimeout(() => setIsAnimating(false), 1000);
   };
 
   const selectedCard = useMemo(() => (selectedHouse !== null && board[selectedHouse]) ? LENORMAND_CARDS.find(c => c.id === board[selectedHouse]) : null, [selectedHouse, board]);
@@ -521,6 +535,15 @@ const App: React.FC = () => {
     }).filter(item => item.card);
   }, [firstDrawBoard, spreadType]);
 
+  const secondDrawHistoryData = useMemo(() => {
+    if (!secondDrawBoard || spreadType !== 'relogio') return null;
+    return secondDrawBoard.slice(0, 13).map((id, idx) => {
+      const card = id ? LENORMAND_CARDS.find(c => c.id === id) : null;
+      const house = idx === 12 ? { id: 113, name: "Tom da Leitura" } : LENORMAND_HOUSES.find(h => h.id === 101 + idx);
+      return { card, house, houseId: idx + 1 };
+    }).filter(item => item.card);
+  }, [secondDrawBoard, spreadType]);
+
   const runMentorAnalysis = useCallback(async () => {
     if (selectedHouse === null || board[selectedHouse] === null) return;
     setIsAiLoading(true); setCardAnalysis(null);
@@ -599,8 +622,11 @@ const App: React.FC = () => {
                <div className="flex items-center gap-2 ml-4">
                  <button onClick={handleClearSpread} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase flex items-center gap-2 transition-all ${darkMode ? 'bg-slate-800 hover:bg-slate-700 text-slate-300' : 'bg-slate-200 hover:bg-slate-300 text-slate-700'}`} title="Limpar todo o tabuleiro"><Trash2 size={14} /> LIMPAR</button>
                  
-                 {spreadType === 'relogio' && firstDrawBoard && (
-                   <button onClick={handleRevertToFirstDraw} className="bg-amber-600 hover:bg-amber-500 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase flex items-center gap-2 shadow-xl"><RotateCcw size={14} /> REVER 1ª TIRAGEM</button>
+                 {spreadType === 'relogio' && firstDrawBoard && secondDrawBoard && (
+                   <button onClick={handleToggleDraws} className="bg-amber-600 hover:bg-amber-500 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase flex items-center gap-2 shadow-xl">
+                     {isViewingFirstDraw ? <Stars size={14} /> : <RotateCcw size={14} />} 
+                     {isViewingFirstDraw ? 'VOLTAR PARA 2ª TIRAGEM' : 'REVER 1ª TIRAGEM'}
+                   </button>
                  )}
                  
                  {spreadType === 'relogio' && !firstDrawBoard && board.some(id => id !== null) && (
@@ -655,7 +681,8 @@ const App: React.FC = () => {
                 </button>
               </div>
 
-              <div ref={boardRef} className="flex-grow flex flex-col items-center justify-center min-h-0 w-full py-4 overflow-hidden">
+              {/* justify-start para mobile: posiciona mesa no alto */}
+              <div ref={boardRef} className="flex-grow flex flex-col items-center justify-start md:justify-center min-h-0 w-full py-4 overflow-hidden">
                 {spreadType === 'mesa-real' ? (
                   <div 
                     ref={contentRef}
@@ -877,12 +904,22 @@ const App: React.FC = () => {
             <div className={`p-4 border-b flex items-center justify-between shadow-lg h-16 shrink-0 ${darkMode ? '' : 'bg-slate-50 border-slate-200'}`}><button onClick={() => setMentorPanelOpen(false)} className={`p-2 transition-colors ${darkMode ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-950'}`}><ChevronRight size={18} /></button><h2 className={`text-xs font-bold font-cinzel uppercase tracking-[0.2em] ${darkMode ? 'text-indigo-100' : 'text-indigo-950 font-black'}`}>Mentor LUMINA</h2><div className="w-10"></div></div>
             <div className="flex-grow overflow-y-auto custom-scrollbar p-6 space-y-8 pb-32">
               
-              {/* HISTÓRICO DA 1ª TIRAGEM (Sempre visível se existir) */}
-              {spreadType === 'relogio' && firstDrawHistoryData && (
-                <div className="space-y-4 animate-in slide-in-from-right duration-500 mb-8">
-                  <h4 className={`text-[12px] font-black uppercase text-indigo-600 tracking-[0.3em] border-b pb-2 ${darkMode ? 'border-white/5' : 'border-slate-200'}`}>HISTÓRICO DA 1ª TIRAGEM</h4>
+              {/* 1. INFORMAÇÕES DA CARTA SELECIONADA (Sempre no Topo conforme solicitado) */}
+              {selectedHouse !== null && board[selectedHouse] ? (
+                <>
+                  <div className={`p-6 rounded-3xl border shadow-lg ${darkMode ? 'bg-slate-950/60 border-indigo-500/20' : 'bg-white border-slate-200'} flex items-center gap-6`}><div className="w-16 md:w-20 aspect-[3/4.2] rounded-xl overflow-hidden border border-slate-700 shrink-0 shadow-lg"><img src={CARD_IMAGES[selectedCard?.id] || FALLBACK_IMAGE} className="w-full h-full object-cover" alt="" /></div><div className="flex-grow"><span className="text-[10px] font-black uppercase text-indigo-500 tracking-widest mb-1 block">CASA {selectedHouse + (spreadType === 'relogio' && selectedHouse < 12 ? 101 : spreadType === 'relogio' ? 113 : 1)}: {currentHouse?.name}</span><h3 className={`text-xl font-cinzel font-bold mb-2 ${darkMode ? 'text-white' : 'text-slate-950'}`}>{selectedCard?.name}</h3><div className="flex items-center gap-4 mt-2"><div className="flex items-center gap-1.5"><div className={`w-2 h-2 rounded-full ${selectedCard?.polarity === Polarity.POSITIVE ? 'bg-emerald-500' : 'bg-rose-500'}`} /><span className={`text-[10px] font-black uppercase ${darkMode ? 'text-slate-200' : 'text-slate-950'}`}>{selectedCard?.polarity}</span></div><div className="flex items-center gap-1.5 text-slate-500"><Clock size={12}/><span className={`text-[10px] font-black uppercase ${darkMode ? 'text-slate-400' : 'text-slate-800 font-bold'}`}>{selectedCard?.timingSpeed}</span></div></div></div></div>
+                  <div className="space-y-4"><div className={`p-4 rounded-2xl border ${darkMode ? 'bg-indigo-500/5 border-indigo-500/10' : 'bg-indigo-50 border-indigo-100 shadow-sm'}`}><span className="text-[11px] font-black uppercase text-indigo-600 mb-2 block">Interpretação Base</span><p className={`text-[14px] italic leading-relaxed ${darkMode ? 'text-slate-300' : 'text-slate-900 font-medium'}`}>"{selectedCard?.briefInterpretation}"</p></div><div className="flex flex-wrap gap-2">{selectedCard?.keywords.map((k, i) => <span key={i} className={`px-2 py-1 rounded-lg text-[11px] font-black uppercase tracking-widest ${darkMode ? 'bg-slate-800 text-indigo-400' : 'bg-indigo-100 text-indigo-950 font-bold'}`}>{k}</span>)}</div></div>
+                </>
+              ) : null}
+
+              {/* 2. HISTÓRICO DAS TIRAGENS (Dinâmico conforme reexibição) */}
+              {spreadType === 'relogio' && (isViewingFirstDraw ? secondDrawHistoryData : firstDrawHistoryData) && (
+                <div className="space-y-4 animate-in slide-in-from-right duration-500">
+                  <h4 className={`text-[12px] font-black uppercase text-indigo-600 tracking-[0.3em] border-b pb-2 ${darkMode ? 'border-white/5' : 'border-slate-200'}`}>
+                    {isViewingFirstDraw ? "HISTÓRICO DA 2ª TIRAGEM" : "HISTÓRICO DA 1ª TIRAGEM"}
+                  </h4>
                   <div className="grid gap-3">
-                     {firstDrawHistoryData.map((item, i) => (
+                     {(isViewingFirstDraw ? secondDrawHistoryData! : firstDrawHistoryData!).map((item, i) => (
                        <div key={i} className={`p-3 rounded-xl border ${darkMode ? 'bg-slate-900/40 border-white/5' : 'bg-slate-50 border-slate-200 shadow-sm'}`}>
                           <div className="flex items-center gap-3">
                              <div className="w-8 h-10 rounded border border-white/10 overflow-hidden shrink-0 shadow-sm"><img src={CARD_IMAGES[item.card?.id] || FALLBACK_IMAGE} className="w-full h-full object-cover" alt="" /></div>
@@ -900,126 +937,93 @@ const App: React.FC = () => {
                 </div>
               )}
 
+              {/* 3. GEOMETRIA ESTRUTURAL (Sempre no fim se houver seleção) */}
               {selectedHouse !== null && board[selectedHouse] ? (
-                <>
-                  <div className={`p-6 rounded-3xl border shadow-lg ${darkMode ? 'bg-slate-950/60 border-indigo-500/20' : 'bg-white border-slate-200'} flex items-center gap-6`}><div className="w-16 md:w-20 aspect-[3/4.2] rounded-xl overflow-hidden border border-slate-700 shrink-0 shadow-lg"><img src={CARD_IMAGES[selectedCard?.id] || FALLBACK_IMAGE} className="w-full h-full object-cover" alt="" /></div><div className="flex-grow"><span className="text-[10px] font-black uppercase text-indigo-500 tracking-widest mb-1 block">CASA {selectedHouse + (spreadType === 'relogio' && selectedHouse < 12 ? 101 : spreadType === 'relogio' ? 113 : 1)}: {currentHouse?.name}</span><h3 className={`text-xl font-cinzel font-bold mb-2 ${darkMode ? 'text-white' : 'text-slate-950'}`}>{selectedCard?.name}</h3><div className="flex items-center gap-4 mt-2"><div className="flex items-center gap-1.5"><div className={`w-2 h-2 rounded-full ${selectedCard?.polarity === Polarity.POSITIVE ? 'bg-emerald-500' : 'bg-rose-500'}`} /><span className={`text-[10px] font-black uppercase ${darkMode ? 'text-slate-200' : 'text-slate-950'}`}>{selectedCard?.polarity}</span></div><div className="flex items-center gap-1.5 text-slate-500"><Clock size={12}/><span className={`text-[10px] font-black uppercase ${darkMode ? 'text-slate-400' : 'text-slate-800 font-bold'}`}>{selectedCard?.timingSpeed}</span></div></div></div></div>
-                  <div className="space-y-4"><div className={`p-4 rounded-2xl border ${darkMode ? 'bg-indigo-500/5 border-indigo-500/10' : 'bg-indigo-50 border-indigo-100 shadow-sm'}`}><span className="text-[11px] font-black uppercase text-indigo-600 mb-2 block">Interpretação Base</span><p className={`text-[14px] italic leading-relaxed ${darkMode ? 'text-slate-300' : 'text-slate-900 font-medium'}`}>"{selectedCard?.briefInterpretation}"</p></div><div className="flex flex-wrap gap-2">{selectedCard?.keywords.map((k, i) => <span key={i} className={`px-2 py-1 rounded-lg text-[11px] font-black uppercase tracking-widest ${darkMode ? 'bg-slate-800 text-indigo-400' : 'bg-indigo-100 text-indigo-950 font-bold'}`}>{k}</span>)}</div></div>
-                  <div className="space-y-6">
-                    <h4 className={`text-[12px] font-black uppercase text-indigo-600 tracking-[0.3em] border-b pb-2 ${darkMode ? 'border-white/5' : 'border-slate-200'}`}>GEOMETRIA ESTRUTURAL</h4>
-                    {spreadType === 'mesa-real' && (
-                      <div className="grid gap-4">
-                        {bridgeData && (
-                          <div className={`p-4 rounded-2xl border ${darkMode ? 'bg-amber-500/5 border-amber-500/20' : 'bg-amber-50 border-amber-200 shadow-sm'}`}>
-                            <h5 className="text-[13px] font-black text-amber-700 uppercase flex items-center gap-2 mb-2"><GitMerge size={12}/> Técnica da Ponte</h5>
-                            <p className={`text-[13px] leading-snug ${darkMode ? 'text-slate-400' : 'text-slate-900'}`}>O dono da Casa {selectedHouse + 1} ({currentHouse?.name}) está na <span className={`font-bold ${darkMode ? 'text-white' : 'text-slate-950 underline decoration-indigo-300'}`}>Casa {bridgeData.houseId} ({bridgeData.house.name})</span> com a carta <span className={`font-bold ${darkMode ? 'text-white' : 'text-slate-950'}`}>{bridgeData.card?.name}</span>.</p>
-                            <p className={`text-[11px] italic mt-1 ${darkMode ? 'text-slate-500' : 'text-slate-800'}`}>"{bridgeData.card?.briefInterpretation}"</p>
-                          </div>
-                        )}
-                        {knightData.length > 0 && (
-                          <div className={`p-4 rounded-2xl border ${darkMode ? 'bg-fuchsia-500/5 border-fuchsia-500/20' : 'bg-fuchsia-50 border-fuchsia-200 shadow-sm'}`}>
-                            <h5 className="text-[13px] font-black text-fuchsia-800 uppercase flex items-center gap-2 mb-3"><CornerDownRight size={12}/> Salto do Cavalo</h5>
-                            <div className="space-y-2">
-                              {knightData.map((item, i) => (
-                                <div key={i} className={`${darkMode ? 'bg-black/20 border-white/5' : 'bg-white border-slate-200 shadow-sm'} p-2 rounded-lg border`}>
-                                  <div className="flex justify-between items-center mb-1">
-                                    <span className={`text-[13px] font-bold ${darkMode ? 'text-white' : 'text-slate-950'}`}>{item.card?.name}</span>
-                                    <span className="text-[11px] text-slate-600 font-black uppercase">Casa {item.houseId}</span>
-                                  </div>
-                                  <p className={`text-[11px] italic leading-tight ${darkMode ? 'text-slate-400' : 'text-slate-800'}`}>"{item.card?.briefInterpretation}"</p>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                        {(diagonalData.up.length > 0 || diagonalData.down.length > 0) && (
-                          <div className={`p-4 rounded-2xl border ${darkMode ? 'bg-orange-500/5 border-orange-500/20' : 'bg-orange-50 border-orange-200 shadow-sm'}`}>
-                            <h5 className="text-[13px] font-black text-orange-800 uppercase flex items-center gap-2 mb-3"><MoveDiagonal size={12}/> Eixos Diagonais</h5>
-                            <div className="space-y-4">
-                              {diagonalData.up.length > 0 && (
-                                <div>
-                                  <span className="text-[11px] font-black text-orange-600 uppercase block mb-1">Campo de Ascensão (🔺):</span>
-                                  {diagonalData.up.map((i, idx) => (
-                                    <div key={idx} className={`${darkMode ? 'bg-white/5' : 'bg-white border border-slate-100 shadow-sm'} p-1.5 rounded mb-1`}>
-                                      <span className={`text-[13px] font-bold block ${darkMode ? 'text-white' : 'text-slate-950'}`}>{i.card?.name} (C{i.houseId})</span>
-                                      <p className={`text-[11px] italic leading-tight mt-0.5 ${darkMode ? 'text-slate-400' : 'text-slate-800'}`}>"{i.card?.briefInterpretation}"</p>
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
-                              {diagonalData.down.length > 0 && (
-                                <div>
-                                  <span className="text-[11px] font-black text-orange-600 uppercase block mb-1">Campo de Sustentação (🔻):</span>
-                                  {diagonalData.down.map((i, idx) => (
-                                    <div key={idx} className={`${darkMode ? 'bg-white/5' : 'bg-white border border-slate-100 shadow-sm'} p-1.5 rounded mb-1`}>
-                                      <span className={`text-[13px] font-bold block ${darkMode ? 'text-white' : 'text-slate-950'}`}>{i.card?.name} (C{i.houseId})</span>
-                                      <p className={`text-[11px] italic leading-tight mt-0.5 ${darkMode ? 'text-slate-400' : 'text-slate-800'}`}>"{i.card?.briefInterpretation}"</p>
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        )}
-                        {frameData && (
-                          <div className={`p-4 rounded-2xl border ${darkMode ? 'bg-indigo-500/5 border-indigo-500/20' : 'bg-indigo-50 border-indigo-200 shadow-sm'}`}>
-                            <h5 className="text-[13px] font-black text-indigo-800 uppercase flex items-center gap-2 mb-3"><Frame size={12}/> Posicionamento de Moldura</h5>
-                            <div className="space-y-3">
-                              <div>
-                                <span className="text-[11px] font-black text-indigo-600 uppercase block mb-1">Moldura Superior (1 & 8):</span>
-                                <div className="grid grid-cols-2 gap-2">
-                                  {frameData.superior.map((f, i) => f.card && (
-                                    <div key={i} className={`${darkMode ? 'bg-indigo-500/10' : 'bg-white border border-indigo-200 shadow-sm'} p-1.5 rounded`}>
-                                      <span className={`text-[12px] font-bold block ${darkMode ? 'text-white' : 'text-slate-950'}`}>{f.card.name} (C{f.houseId})</span>
-                                      <p className={`text-[11px] italic mt-0.5 leading-tight ${darkMode ? 'text-slate-500' : 'text-slate-800'}`}>"{f.card.briefInterpretation}"</p>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                              <div>
-                                <span className="text-[11px] font-black text-indigo-600 uppercase block mb-1">Moldura Inferior (25 & 32):</span>
-                                <div className="grid grid-cols-2 gap-2">
-                                  {frameData.inferior.map((f, i) => f.card && (
-                                    <div key={i} className={`${darkMode ? 'bg-indigo-500/10' : 'bg-white border border-indigo-200 shadow-sm'} p-1.5 rounded`}>
-                                      <span className={`text-[12px] font-bold block ${darkMode ? 'text-white' : 'text-slate-950'}`}>{f.card.name} (C{f.houseId})</span>
-                                      <p className={`text-[11px] italic mt-0.5 leading-tight ${darkMode ? 'text-slate-500' : 'text-slate-800'}`}>"{f.card.briefInterpretation}"</p>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                    {spreadType === 'relogio' && axisDataRelogio && (
-                      <div className="grid gap-4">
-                        <div className={`p-4 rounded-2xl border ${darkMode ? 'bg-indigo-500/5 border-indigo-500/20' : 'bg-indigo-50 border-indigo-100 shadow-sm'}`}>
-                          <h5 className="text-[13px] font-black text-indigo-800 uppercase flex items-center gap-2 mb-2"><Scale size={12}/> Eixo de Oposição (180°)</h5>
-                          <p className={`text-[13px] font-bold mb-2 ${darkMode ? 'text-slate-300' : 'text-indigo-950'}`}>{axisDataRelogio.axis?.name}</p>
-                          <p className={`text-[12px] mb-4 ${darkMode ? 'text-slate-400' : 'text-slate-800'}`}>{axisDataRelogio.axis?.description}</p>
-                          
-                          {/* Interpretação da carta oposta */}
-                          {axisDataRelogio.oppositeCard && (
-                            <div className={`p-3 rounded-xl border animate-in fade-in duration-500 ${darkMode ? 'bg-black/20 border-white/5' : 'bg-white border-slate-200 shadow-sm'}`}>
-                              <div className="flex justify-between items-center mb-1">
-                                <span className={`text-[11px] font-bold ${darkMode ? 'text-indigo-300' : 'text-indigo-900'}`}>
-                                  {axisDataRelogio.oppositeCard.name} (Oposição)
-                                </span>
-                                <span className="text-[9px] text-slate-500 font-black uppercase">Casa {axisDataRelogio.oppositeHouseId}</span>
-                              </div>
-                              <p className={`text-[11px] italic leading-tight ${darkMode ? 'text-slate-400' : 'text-slate-800'}`}>
-                                "{axisDataRelogio.oppositeCard.briefInterpretation}"
-                              </p>
-                            </div>
-                          )}
+                <div className="space-y-6">
+                  <h4 className={`text-[12px] font-black uppercase text-indigo-600 tracking-[0.3em] border-b pb-2 ${darkMode ? 'border-white/5' : 'border-slate-200'}`}>GEOMETRIA ESTRUTURAL</h4>
+                  {spreadType === 'mesa-real' && (
+                    <div className="grid gap-4">
+                      {bridgeData && (
+                        <div className={`p-4 rounded-2xl border ${darkMode ? 'bg-amber-500/5 border-amber-500/20' : 'bg-amber-50 border-amber-200 shadow-sm'}`}>
+                          <h5 className="text-[13px] font-black text-amber-700 uppercase flex items-center gap-2 mb-2"><GitMerge size={12}/> Técnica da Ponte</h5>
+                          <p className={`text-[13px] leading-snug ${darkMode ? 'text-slate-400' : 'text-slate-900'}`}>O dono da Casa {selectedHouse + 1} ({currentHouse?.name}) está na <span className={`font-bold ${darkMode ? 'text-white' : 'text-slate-950 underline decoration-indigo-300'}`}>Casa {bridgeData.houseId} ({bridgeData.house.name})</span> com a carta <span className={`font-bold ${darkMode ? 'text-white' : 'text-slate-950'}`}>{bridgeData.card?.name}</span>.</p>
+                          <p className={`text-[11px] italic mt-1 ${darkMode ? 'text-slate-500' : 'text-slate-800'}`}>"{bridgeData.card?.briefInterpretation}"</p>
                         </div>
+                      )}
+                      {knightData.length > 0 && (
+                        <div className={`p-4 rounded-2xl border ${darkMode ? 'bg-fuchsia-500/5 border-fuchsia-500/20' : 'bg-fuchsia-50 border-fuchsia-200 shadow-sm'}`}>
+                          <h5 className="text-[13px] font-black text-fuchsia-800 uppercase flex items-center gap-2 mb-3"><CornerDownRight size={12}/> Salto do Cavalo</h5>
+                          <div className="space-y-2">
+                            {knightData.map((item, i) => (
+                              <div key={i} className={`${darkMode ? 'bg-black/20 border-white/5' : 'bg-white border-slate-200 shadow-sm'} p-2 rounded-lg border`}>
+                                <div className="flex justify-between items-center mb-1">
+                                  <span className={`text-[13px] font-bold ${darkMode ? 'text-white' : 'text-slate-950'}`}>{item.card?.name}</span>
+                                  <span className="text-[11px] text-slate-600 font-black uppercase">Casa {item.houseId}</span>
+                                </div>
+                                <p className={`text-[11px] italic leading-tight ${darkMode ? 'text-slate-400' : 'text-slate-800'}`}>"{item.card?.briefInterpretation}"</p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {(diagonalData.up.length > 0 || diagonalData.down.length > 0) && (
+                        <div className={`p-4 rounded-2xl border ${darkMode ? 'bg-orange-500/5 border-orange-500/20' : 'bg-orange-50 border-orange-200 shadow-sm'}`}>
+                          <h5 className="text-[13px] font-black text-orange-800 uppercase flex items-center gap-2 mb-3"><MoveDiagonal size={12}/> Eixos Diagonais</h5>
+                          <div className="space-y-4">
+                            {diagonalData.up.length > 0 && (
+                              <div>
+                                <span className="text-[11px] font-black text-orange-600 uppercase block mb-1">Campo de Ascensão (🔺):</span>
+                                {diagonalData.up.map((i, idx) => (
+                                  <div key={idx} className={`${darkMode ? 'bg-white/5' : 'bg-white border border-slate-100 shadow-sm'} p-1.5 rounded mb-1`}>
+                                    <span className={`text-[13px] font-bold block ${darkMode ? 'text-white' : 'text-slate-950'}`}>{i.card?.name} (C{i.houseId})</span>
+                                    <p className={`text-[11px] italic leading-tight mt-0.5 ${darkMode ? 'text-slate-400' : 'text-slate-800'}`}>"{i.card?.briefInterpretation}"</p>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                            {diagonalData.down.length > 0 && (
+                              <div>
+                                <span className="text-[11px] font-black text-orange-600 uppercase block mb-1">Campo de Sustentação (🔻):</span>
+                                {diagonalData.down.map((i, idx) => (
+                                  <div key={idx} className={`${darkMode ? 'bg-white/5' : 'bg-white border border-slate-100 shadow-sm'} p-1.5 rounded mb-1`}>
+                                    <span className={`text-[13px] font-bold block ${darkMode ? 'text-white' : 'text-slate-950'}`}>{i.card?.name} (C{i.houseId})</span>
+                                    <p className={`text-[11px] italic leading-tight mt-0.5 ${darkMode ? 'text-slate-400' : 'text-slate-800'}`}>"{i.card?.briefInterpretation}"</p>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {spreadType === 'relogio' && axisDataRelogio && (
+                    <div className="grid gap-4">
+                      <div className={`p-4 rounded-2xl border ${darkMode ? 'bg-indigo-500/5 border-indigo-500/20' : 'bg-indigo-50 border-indigo-100 shadow-sm'}`}>
+                        <h5 className="text-[13px] font-black text-indigo-800 uppercase flex items-center gap-2 mb-2"><Scale size={12}/> Eixo de Oposição (180°)</h5>
+                        <p className={`text-[13px] font-bold mb-2 ${darkMode ? 'text-slate-300' : 'text-indigo-950'}`}>{axisDataRelogio.axis?.name}</p>
+                        <p className={`text-[12px] mb-4 ${darkMode ? 'text-slate-400' : 'text-slate-800'}`}>{axisDataRelogio.axis?.description}</p>
+                        
+                        {/* Interpretação da carta oposta */}
+                        {axisDataRelogio.oppositeCard && (
+                          <div className={`p-3 rounded-xl border animate-in fade-in duration-500 ${darkMode ? 'bg-black/20 border-white/5' : 'bg-white border-slate-200 shadow-sm'}`}>
+                            <div className="flex justify-between items-center mb-1">
+                              <span className={`text-[11px] font-bold ${darkMode ? 'text-indigo-300' : 'text-indigo-900'}`}>
+                                {axisDataRelogio.oppositeCard.name} (Oposição)
+                              </span>
+                              <span className="text-[9px] text-slate-500 font-black uppercase">Casa {axisDataRelogio.oppositeHouseId}</span>
+                            </div>
+                            <p className={`text-[11px] italic leading-tight ${darkMode ? 'text-slate-400' : 'text-slate-800'}`}>
+                              "{axisDataRelogio.oppositeCard.briefInterpretation}"
+                            </p>
+                          </div>
+                        )}
                       </div>
-                    )}
-
-                    <button onClick={runMentorAnalysis} disabled={isAiLoading} className="w-full bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all shadow-xl mt-6">{isAiLoading ? <Loader2 size={16} className="animate-spin" /> : <Wand2 size={16} />}<span>EXPANDIR LEITURA (MENTOR IA)</span></button>
-                    {cardAnalysis && <div className={`mt-4 rounded-3xl p-6 border shadow-2xl animate-in slide-in-from-bottom-4 duration-700 ${darkMode ? 'bg-slate-950/80 border-slate-800' : 'bg-white border-slate-200'}`}><div className={`prose prose-sm ${darkMode ? 'prose-invert' : ''} text-[12px] font-inter leading-relaxed whitespace-pre-wrap ${darkMode ? '' : 'text-slate-950'}`}>{cardAnalysis}</div></div>}
-                  </div>
-                </>
+                    </div>
+                  )}
+                  <button onClick={runMentorAnalysis} disabled={isAiLoading} className="w-full bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all shadow-xl mt-6">{isAiLoading ? <Loader2 size={16} className="animate-spin" /> : <Wand2 size={16} />}<span>EXPANDIR LEITURA (MENTOR IA)</span></button>
+                  {cardAnalysis && <div className={`mt-4 rounded-3xl p-6 border shadow-2xl animate-in slide-in-from-bottom-4 duration-700 ${darkMode ? 'bg-slate-950/80 border-slate-800' : 'bg-white border-slate-200'}`}><div className={`prose prose-sm ${darkMode ? 'prose-invert' : ''} text-[12px] font-inter leading-relaxed whitespace-pre-wrap ${darkMode ? '' : 'text-slate-950'}`}>{cardAnalysis}</div></div>}
+                </div>
               ) : (
                 !firstDrawHistoryData && (
                   <div className="h-full flex flex-col items-center justify-center text-center opacity-20 p-8"><Compass size={64} className="mb-6 animate-pulse" /><p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Selecione uma casa ocupada no laboratório.</p></div>
