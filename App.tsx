@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { 
   LayoutGrid, RotateCcw, Sparkles, ChevronRight, ChevronLeft, BookOpen, 
@@ -9,7 +10,7 @@ import {
   Eye, Maximize2, Minimize2, Menu, Save, Download, CreditCard, Activity as ActivityIcon,
   Book, GitMerge, RefreshCw, Scale, ZapOff, Trash2, Calendar, HardDrive, Smartphone, Globe, Share2,
   GraduationCap, PenTool, ClipboardList, BarChart3, Binary, MousePointer2, Plus, Monitor,
-  Crosshair, Frame, CornerDownRight, CheckCircle2, Lightbulb
+  Crosshair, Frame, CornerDownRight, CheckCircle2, Lightbulb, ZoomIn, ZoomOut
 } from 'lucide-react';
 import html2canvas from 'https://esm.sh/html2canvas@1.4.1';
 import { jsPDF } from 'https://esm.sh/jspdf@2.5.1';
@@ -65,6 +66,7 @@ const CardVisual: React.FC<{
   offsetX?: string;
   offsetY?: string;
   studyModeActive?: boolean;
+  isAnimating?: boolean;
 }> = ({ 
   card, 
   houseId, 
@@ -78,22 +80,23 @@ const CardVisual: React.FC<{
   spreadType = 'mesa-real',
   offsetX = '0px',
   offsetY = '0px',
-  studyModeActive = false
+  studyModeActive = false,
+  isAnimating = false
 }) => {
   const highlightStyles: Record<string, string> = {
-    mirror: 'ring-4 ring-cyan-500/60 border-cyan-400 scale-105 z-10 animate-pulse',
-    knight: 'ring-4 ring-fuchsia-500/60 border-fuchsia-400 scale-105 z-10 animate-pulse',
+    mirror: 'ring-4 ring-cyan-500/60 border-cyan-400 scale-105 z-10',
+    knight: 'ring-4 ring-fuchsia-500/60 border-fuchsia-400 scale-105 z-10',
     frame: 'border-amber-500/80 ring-2 ring-amber-500/40 animate-pulse',
-    axis: 'ring-4 ring-indigo-500/60 border-indigo-400 scale-105 z-10 animate-pulse',
-    bridge: 'ring-4 ring-amber-400/80 border-amber-400 scale-110 z-30 animate-bounce',
-    veredito: 'ring-4 ring-emerald-500/60 border-emerald-400 scale-105 z-10 animate-pulse',
-    'diag-up': 'ring-4 ring-orange-500/60 border-orange-400 scale-105 z-10 animate-pulse',
-    'diag-down': 'ring-4 ring-indigo-500/60 border-indigo-400 scale-105 z-10 animate-pulse',
-    'center': 'ring-4 ring-amber-400 border-amber-400 scale-110 z-30 animate-pulse',
-    theme: 'ring-[6px] ring-white/40 border-white scale-110 z-40 animate-pulse'
+    axis: 'ring-4 ring-indigo-500/60 border-indigo-400 scale-105 z-10',
+    bridge: 'ring-4 ring-amber-400/80 border-amber-400 scale-110 z-30',
+    veredito: 'ring-4 ring-emerald-500/60 border-emerald-400 scale-105 z-10',
+    'diag-up': 'ring-4 ring-orange-500/60 border-orange-400 scale-105 z-10',
+    'diag-down': 'ring-4 ring-indigo-500/60 border-indigo-400 scale-105 z-10',
+    'center': 'ring-4 ring-amber-400 border-amber-400 scale-110 z-30',
+    theme: 'ring-[6px] ring-white/40 border-white scale-110 z-40'
   };
 
-  const animationClass = spreadType === 'mesa-real' ? 'animate-mesa-card' : 'animate-clock-card';
+  const animationClass = isAnimating ? (spreadType === 'mesa-real' ? 'animate-mesa-card' : 'animate-clock-card') : '';
   const animationDelay = `${(houseId % 36) * 0.04}s`;
 
   return (
@@ -161,6 +164,7 @@ const ConceptAccordion: React.FC<{
       </div>
       
       {isOpen && (
+        /* Fix: CSS classes in ternary expression must be wrapped in quotes to be interpreted as strings, fixing line 166 and cascading errors on line 180 */
         <div className={`px-6 pb-6 pt-2 border-t ${darkMode ? 'border-white/5 bg-black/10' : 'border-slate-100 bg-slate-50/50'} animate-in fade-in duration-300`}>
           <div className={`text-[13px] leading-relaxed whitespace-pre-wrap mb-6 ${darkMode ? 'text-slate-400' : 'text-slate-600'}`}>
             {concept.details}
@@ -212,11 +216,83 @@ const App: React.FC = () => {
   const [readingTheme, setReadingTheme] = useState<ReadingTheme>('Geral');
   
   const [board, setBoard] = useState<(number | null)[]>([]);
+  const [firstDrawBoard, setFirstDrawBoard] = useState<(number | null)[] | null>(null);
   const [selectedHouse, setSelectedHouse] = useState<number | null>(null);
   const [geometryFilters, setGeometryFilters] = useState<Set<GeometryFilter>>(new Set(['nenhuma']));
   const [showCardPicker, setShowCardPicker] = useState(false);
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [cardAnalysis, setCardAnalysis] = useState<string | null>(null);
+  const [isAnimating, setIsAnimating] = useState(false);
+
+  // Referências para Zoom
+  const boardRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+
+  // Lógica de Zoom
+  const [zoomLevel, setZoomLevel] = useState(1);
+  const [zoomMenuOpen, setZoomMenuOpen] = useState(false);
+  const handleZoomIn = () => setZoomLevel(prev => Math.min(prev + 0.1, 2.5));
+  const handleZoomOut = () => setZoomLevel(prev => Math.max(prev - 0.1, 0.4));
+  
+  // Função para ajustar o conteúdo à tela (Fit to Screen) corrigida
+  const handleResetZoom = useCallback(() => {
+    if (boardRef.current && contentRef.current) {
+      const container = boardRef.current;
+      const content = contentRef.current;
+      
+      // Temporariamente remove transformações para medir o tamanho real do conteúdo
+      const originalTransform = content.style.transform;
+      const originalTransition = content.style.transition;
+      content.style.transform = 'none';
+      content.style.transition = 'none';
+      
+      // Força o navegador a recalcular o layout
+      void content.offsetHeight;
+      
+      const containerWidth = container.offsetWidth;
+      const containerHeight = container.offsetHeight;
+      const contentWidth = content.scrollWidth;
+      const contentHeight = content.scrollHeight;
+      
+      // Restaura o estado anterior (será atualizado pelo state do React no próximo ciclo)
+      content.style.transform = originalTransform;
+      content.style.transition = originalTransition;
+
+      const padding = 32; // Margem de segurança em pixels
+      const scaleW = (containerWidth - padding) / contentWidth;
+      const scaleH = (containerHeight - padding) / contentHeight;
+      
+      // Encontra o fator de escala que permite ver todo o conteúdo (largura e altura)
+      let fitScale = Math.min(scaleW, scaleH);
+      
+      // Garante limites razoáveis e evita divisões estranhas
+      fitScale = Math.max(0.3, Math.min(fitScale, 1.2));
+      
+      setZoomLevel(fitScale);
+      setZoomMenuOpen(false);
+    } else {
+      setZoomLevel(1);
+      setZoomMenuOpen(false);
+    }
+  }, [spreadType]);
+
+  // Perfil do Usuário
+  const [userName, setUserName] = useState('Estudante Lumina');
+  const [isExcludingReadings, setIsExcludingReadings] = useState(false);
+  const [savedReadings, setSavedReadings] = useState([
+    { id: 1, title: 'Leitura de Janeiro', date: '05/02/2024', type: 'mesa-real' },
+    { id: 2, title: 'Leitura de Destino', date: '05/02/2024', type: 'relogio' }
+  ]);
+
+  const handleDeleteReading = (id: number) => {
+    setSavedReadings(prev => prev.filter(r => r.id !== id));
+  };
+
+  const handleClearAllReadings = () => {
+    if (window.confirm("Tem certeza que deseja excluir todas as leituras salvas?")) {
+      setSavedReadings([]);
+    }
+  };
 
   // Estado isolado para o Modo Estudo
   const [studyMode, setStudyMode] = useState<StudyModeState>({
@@ -228,23 +304,65 @@ const App: React.FC = () => {
   const [activeBalloons, setActiveBalloons] = useState<StudyBalloon[]>([]);
 
   const [openConceptId, setOpenConceptId] = useState<string | null>(null);
-  const boardRef = useRef<HTMLDivElement>(null);
 
   // Inicialização
   useEffect(() => {
     if (isManualMode) setBoard(new Array(36).fill(null));
-    else setBoard(generateShuffledArray(36));
+    else handleShuffle();
     setSelectedHouse(null);
     setCardAnalysis(null);
+    setZoomLevel(1); // Reseta zoom ao trocar de modo
   }, [spreadType, isManualMode]);
 
-  const generateShuffledArray = (size: number) => {
-    const ids = Array.from({length: 36}, (_, i) => i + 1);
+  const generateShuffledArray = (size: number, excludeIds: number[] = []) => {
+    const ids = Array.from({length: 36}, (_, i) => i + 1).filter(id => !excludeIds.includes(id));
     for (let i = ids.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [ids[i], ids[j]] = [ids[j], ids[i]];
     }
     return ids.slice(0, size);
+  };
+
+  const handleShuffle = () => {
+    setIsAnimating(true);
+    const newBoard = generateShuffledArray(36);
+    setBoard(newBoard);
+    setFirstDrawBoard(null);
+    setTimeout(() => setIsAnimating(false), 1000);
+  };
+
+  const handleSecondDraw = () => {
+    if (spreadType !== 'relogio') return;
+    setIsAnimating(true);
+    // Guarda o histórico das 13 cartas mostradas
+    const currentDraw = board.slice(0, 13);
+    setFirstDrawBoard([...currentDraw]);
+    
+    // Filtra as cartas que NÃO saíram na primeira tiragem
+    const usedIds = currentDraw.filter(id => id !== null) as number[];
+    const nextDraw = generateShuffledArray(13, usedIds);
+    
+    // Atualiza o board principal com as 13 novas cartas, mantendo o restante nulo para consistência
+    const updatedBoard = [...nextDraw, ...new Array(23).fill(null)];
+    setBoard(updatedBoard);
+    setSelectedHouse(null);
+    setTimeout(() => setIsAnimating(false), 1000);
+  };
+
+  const handleClearSpread = () => {
+    setBoard(new Array(36).fill(null));
+    setFirstDrawBoard(null);
+  };
+
+  const handleRevertToFirstDraw = () => {
+    if (firstDrawBoard) {
+      setIsAnimating(true);
+      const restored = [...firstDrawBoard, ...new Array(23).fill(null)];
+      setBoard(restored);
+      setFirstDrawBoard(null);
+      setSelectedHouse(null);
+      setTimeout(() => setIsAnimating(false), 1000);
+    }
   };
 
   const selectedCard = useMemo(() => (selectedHouse !== null && board[selectedHouse]) ? LENORMAND_CARDS.find(c => c.id === board[selectedHouse]) : null, [selectedHouse, board]);
@@ -279,13 +397,15 @@ const App: React.FC = () => {
     setStudyMode({ active: true, topicId, practiceTarget: target, splitView: false });
     setSpreadType(target);
     setView('board');
-    // Forçar seleção neutra se necessário para ver destaques globais
-    if (topicId.includes('moldura') || topicId.includes('veredito') || topicId.includes('relogio')) {
+    // Para tópicos globais, limpa seleção. Para outros, garante que haja uma seleção se possível.
+    const isGlobal = topicId.includes('frame') || topicId.includes('moldura') || topicId.includes('veredict') || topicId.includes('veredito') || topicId.includes('clock') || topicId.includes('relogio');
+    if (isGlobal) {
       setSelectedHouse(null);
     } else if (selectedHouse === null) {
       const occupiedIdx = board.findIndex(id => id !== null);
       if (occupiedIdx !== -1) setSelectedHouse(occupiedIdx);
     }
+    
     // Adiciona balão explicativo específico se houver
     const balloons = STUDY_BALLOONS[target];
     const matchingBalloon = balloons.find(b => topicId.includes(b.target));
@@ -332,22 +452,27 @@ const App: React.FC = () => {
 
     if (studyMode.active && studyMode.topicId) {
       const topicId = studyMode.topicId;
-      if (topicId.includes('moldura') && Geometry.getMoldura().includes(idx)) return 'frame';
-      if (topicId.includes('veredito') && idx >= 32) return 'veredito';
+      if ((topicId.includes('frame') || topicId.includes('moldura')) && Geometry.getMoldura().includes(idx)) return 'frame';
+      if ((topicId.includes('veredict') || topicId.includes('veredito')) && idx >= 32) return 'veredito';
       if (selectedHouse !== null) {
         if (topicId.includes('ponte')) {
           const targetId = selectedHouse + 1;
           const targetIdx = board.findIndex(id => id === (targetId));
           if (idx === targetIdx) return 'bridge';
         }
-        if (topicId.includes('cavalo') && Geometry.getCavalo(selectedHouse).includes(idx)) return 'knight';
-        if (topicId.includes('espelho') && Geometry.getEspelhamentos(selectedHouse).includes(idx)) return 'mirror';
-        if (topicId.includes('diagonal-superior') && Geometry.getDiagonaisSuperiores(selectedHouse).includes(idx)) return 'diag-up';
-        if (topicId.includes('diagonal-inferior') && Geometry.getDiagonaisInferiores(selectedHouse).includes(idx)) return 'diag-down';
+        if (topicId.includes('knight') || topicId.includes('cavalo')) if (Geometry.getCavalo(selectedHouse).includes(idx)) return 'knight';
+        if (topicId.includes('mirror') || topicId.includes('espelho')) if (Geometry.getEspelhamentos(selectedHouse).includes(idx)) return 'mirror';
+        if (topicId.includes('diagonal-superior')) if (Geometry.getDiagonaisSuperiores(selectedHouse).includes(idx)) return 'diag-up';
+        if (topicId.includes('diagonal-inferior')) if (Geometry.getDiagonaisInferiores(selectedHouse).includes(idx)) return 'diag-down';
+        if (topicId.includes('diagonal') && !topicId.includes('-')) {
+             if (Geometry.getDiagonaisSuperiores(selectedHouse).includes(idx)) return 'diag-up';
+             if (Geometry.getDiagonaisInferiores(selectedHouse).includes(idx)) return 'diag-down';
+        }
       }
       if (spreadType === 'relogio') {
-        if (topicId.includes('casa-central') && idx === 12) return 'center';
-        if (topicId.includes('oposicoes') && selectedHouse !== null && idx === Geometry.getOposicaoRelogio(selectedHouse)) return 'axis';
+        if (topicId.includes('center') || topicId.includes('centro')) if (idx === 12) return 'center';
+        if (topicId.includes('house') || topicId.includes('casa')) return 'axis'; // Destaque geral de ciclo
+        if (topicId.includes('oposicao') || topicId.includes('opposition')) if (selectedHouse !== null && idx === Geometry.getOposicaoRelogio(selectedHouse)) return 'axis';
       }
     }
 
@@ -386,6 +511,15 @@ const App: React.FC = () => {
     const oppositeIdx = Geometry.getOposicaoRelogio(selectedHouse);
     return { axis: Geometry.getAxisDataRelogio(selectedHouse), oppositeCard: board[oppositeIdx] ? LENORMAND_CARDS.find(c => c.id === board[oppositeIdx]) : null, oppositeHouseId: oppositeIdx + 1 };
   }, [selectedHouse, board, spreadType]);
+
+  const firstDrawHistoryData = useMemo(() => {
+    if (!firstDrawBoard || spreadType !== 'relogio') return null;
+    return firstDrawBoard.slice(0, 13).map((id, idx) => {
+      const card = id ? LENORMAND_CARDS.find(c => c.id === id) : null;
+      const house = idx === 12 ? { id: 113, name: "Tom da Leitura" } : LENORMAND_HOUSES.find(h => h.id === 101 + idx);
+      return { card, house, houseId: idx + 1 };
+    }).filter(item => item.card);
+  }, [firstDrawBoard, spreadType]);
 
   const runMentorAnalysis = useCallback(async () => {
     if (selectedHouse === null || board[selectedHouse] === null) return;
@@ -439,7 +573,7 @@ const App: React.FC = () => {
         </div>
       </aside>
 
-      <main className="flex-grow flex flex-col h-screen overflow-y-auto custom-scrollbar">
+      <main className="flex-grow flex flex-col h-screen overflow-y-auto custom-scrollbar relative">
         <header className={`h-16 flex items-center justify-between px-10 border-b sticky top-0 z-20 backdrop-blur-md transition-colors ${darkMode ? 'bg-slate-950/80 border-white/5' : 'bg-white/95 border-slate-200 shadow-sm'}`}>
           <h2 className={`font-cinzel text-sm font-black tracking-widest uppercase ${darkMode ? 'text-white' : 'text-slate-900'}`}>
             {view === 'board' ? (studyMode.active ? 'Estudo Prático' : isManualMode ? 'Mesa Personalizada' : spreadType === 'mesa-real' ? 'Mesa Real' : 'Relógio') : view === 'glossary' ? 'Glossário' : view === 'fundamentals' ? 'Fundamentos' : view === 'profile' ? 'Perfil do Usuário' : view === 'study' ? 'Modo Estudo' : 'Estudo'}
@@ -461,39 +595,101 @@ const App: React.FC = () => {
                    ))}
                  </div>
                )}
-               <button onClick={() => setBoard(generateShuffledArray(36))} className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase flex items-center gap-2 shadow-xl ml-4"><RotateCcw size={14} /> EMBARALHAR</button>
+               
+               <div className="flex items-center gap-2 ml-4">
+                 <button onClick={handleClearSpread} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase flex items-center gap-2 transition-all ${darkMode ? 'bg-slate-800 hover:bg-slate-700 text-slate-300' : 'bg-slate-200 hover:bg-slate-300 text-slate-700'}`} title="Limpar todo o tabuleiro"><Trash2 size={14} /> LIMPAR</button>
+                 
+                 {spreadType === 'relogio' && firstDrawBoard && (
+                   <button onClick={handleRevertToFirstDraw} className="bg-amber-600 hover:bg-amber-500 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase flex items-center gap-2 shadow-xl"><RotateCcw size={14} /> REVER 1ª TIRAGEM</button>
+                 )}
+                 
+                 {spreadType === 'relogio' && !firstDrawBoard && board.some(id => id !== null) && (
+                    <button onClick={handleSecondDraw} className="bg-indigo-500 hover:bg-indigo-400 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase flex items-center gap-2 shadow-xl"><Stars size={14} /> SEGUNDA TIRAGEM</button>
+                 )}
+
+                 <button onClick={handleShuffle} className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase flex items-center gap-2 shadow-xl"><RotateCcw size={14} /> {spreadType === 'relogio' ? 'NOVA TIRAGEM' : 'EMBARALHAR'}</button>
+               </div>
             </div>
           )}
         </header>
 
-        <div className="p-4 md:p-10 flex-grow flex flex-col min-h-0">
+        <div className="p-4 md:p-10 flex-grow flex flex-col min-h-0 relative">
           {activeBalloons.map((b, i) => <Balloon key={i} balloon={b} darkMode={darkMode} onDismiss={() => setActiveBalloons(prev => prev.filter(x => x !== b))} />)}
           
           {view === 'board' && (
-            <div ref={boardRef} className="flex-grow flex flex-col items-center justify-center min-h-0 w-full py-4 overflow-hidden">
-              {spreadType === 'mesa-real' ? (
-                <div className="max-w-6xl w-full grid grid-cols-8 gap-1 md:gap-3 mx-auto landscape:scale-[0.8] sm:landscape:scale-[0.9] lg:landscape:scale-100 origin-center transition-all duration-300 flex-grow-0">
-                  {board.slice(0, 32).map((id, i) => <CardVisual key={`real-${i}-${id}`} card={id ? LENORMAND_CARDS.find(c => c.id === id) : null} houseId={i + 1} isSelected={selectedHouse === i} isThemeCard={false} highlightType={getGeometryHighlight(i)} onClick={() => handleHouseSelection(i)} darkMode={darkMode} isManualMode={isManualMode} spreadType="mesa-real" studyModeActive={studyMode.active} />)}
-                  <div className="col-span-8 flex justify-center py-2 md:py-4"><span className="text-[9px] md:text-[11px] font-cinzel font-black tracking-[0.6em] text-slate-500 uppercase opacity-60">VEREDITO</span></div>
-                  <div className="col-span-2"></div>
-                  {board.slice(32, 36).map((id, i) => <CardVisual key={`real-${i+32}-${id}`} card={id ? LENORMAND_CARDS.find(c => c.id === id) : null} houseId={i + 33} isSelected={selectedHouse === i+32} isThemeCard={false} highlightType={getGeometryHighlight(i+32)} onClick={() => handleHouseSelection(i+32)} darkMode={darkMode} isManualMode={isManualMode} spreadType="mesa-real" studyModeActive={studyMode.active} />)}
-                </div>
-              ) : (
-                <div className="flex items-center justify-center flex-grow min-h-0 w-full landscape:scale-[0.6] sm:landscape:scale-[0.8] lg:landscape:scale-100 origin-center transition-all">
-                  <div className={`relative w-[28rem] h-[28rem] md:w-[32rem] md:h-[32rem] border rounded-full flex items-center justify-center ${darkMode ? 'border-slate-800/20' : 'border-slate-200'}`}>
-                    <div className="absolute w-28 z-20"><CardVisual key={`clock-center-${board[12]}`} card={board[12] ? LENORMAND_CARDS.find(c => c.id === board[12]) : null} houseId={13} isSelected={selectedHouse === 12} isThemeCard={false} highlightType={getGeometryHighlight(12)} onClick={() => handleHouseSelection(12)} darkMode={darkMode} isManualMode={isManualMode} spreadType="relogio" studyModeActive={studyMode.active} /></div>
-                    {board.slice(0, 12).map((id, i) => {
-                      const angle = (i * 30) - 90; const rad = angle * Math.PI / 180; const ox = 40 * Math.cos(rad); const oy = 40 * Math.sin(rad);
-                      return (
-                        <div key={`clock-house-${i}-${id}`} className="absolute w-24 aspect-[3/4.2] -translate-x-1/2 -translate-y-1/2 z-10 overflow-visible" style={{ left: `${50 + ox}%`, top: `${50 + oy}%` }}>
-                          <CardVisual card={id ? LENORMAND_CARDS.find(c => c.id === id) : null} houseId={i + 1} isSelected={selectedHouse === i} isThemeCard={false} highlightType={getGeometryHighlight(i)} onClick={() => handleHouseSelection(i)} darkMode={darkMode} isManualMode={isManualMode} spreadType="relogio" offsetX={`${ox * 8}px`} offsetY={`${oy * 8}px`} studyModeActive={studyMode.active} />
-                        </div>
-                      );
-                    })}
+            <>
+              {/* CONTROLES DE ZOOM COLAPSÁVEIS */}
+              <div className="absolute bottom-10 right-10 flex flex-col items-end gap-3 z-50">
+                <div className={`flex flex-col gap-3 transition-all duration-300 transform origin-bottom ${zoomMenuOpen ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 translate-y-4 pointer-events-none'}`}>
+                  <button 
+                    onClick={handleZoomIn} 
+                    title="Aumentar Zoom"
+                    className={`p-3 rounded-full border shadow-2xl transition-all hover:scale-110 active:scale-95 ${darkMode ? 'bg-slate-900 border-slate-800 text-indigo-400 hover:bg-indigo-600 hover:text-white' : 'bg-white border-slate-200 text-indigo-700 hover:bg-indigo-600 hover:text-white'}`}
+                  >
+                    <ZoomIn size={22} />
+                  </button>
+                  <button 
+                    onClick={handleZoomOut} 
+                    title="Diminuir Zoom"
+                    className={`p-3 rounded-full border shadow-2xl transition-all hover:scale-110 active:scale-95 ${darkMode ? 'bg-slate-900 border-slate-800 text-indigo-400 hover:bg-indigo-600 hover:text-white' : 'bg-white border-slate-200 text-indigo-700 hover:bg-indigo-600 hover:text-white'}`}
+                  >
+                    <ZoomOut size={22} />
+                  </button>
+                  <button 
+                    onClick={handleResetZoom} 
+                    title="Ajustar à Tela"
+                    className={`p-3 rounded-full border shadow-2xl transition-all hover:scale-110 active:scale-95 ${darkMode ? 'bg-slate-900 border-slate-800 text-indigo-400 hover:bg-indigo-600 hover:text-white' : 'bg-white border-slate-200 text-indigo-700 hover:bg-indigo-600 hover:text-white'}`}
+                  >
+                    <Maximize2 size={22} />
+                  </button>
+                  <div className={`mt-2 text-center text-[10px] font-black uppercase tracking-widest ${darkMode ? 'text-slate-600' : 'text-slate-400'}`}>
+                    {Math.round(zoomLevel * 100)}%
                   </div>
                 </div>
-              )}
-            </div>
+                
+                <button 
+                  onClick={() => setZoomMenuOpen(!zoomMenuOpen)}
+                  className={`p-4 rounded-full border shadow-2xl transition-all hover:scale-105 active:scale-95 ${zoomMenuOpen ? 'bg-rose-600 border-rose-500' : 'bg-indigo-600 border-indigo-500'} text-white`}
+                >
+                  {zoomMenuOpen ? <X size={24} /> : <ZoomIn size={24} />}
+                </button>
+              </div>
+
+              <div ref={boardRef} className="flex-grow flex flex-col items-center justify-center min-h-0 w-full py-4 overflow-hidden">
+                {spreadType === 'mesa-real' ? (
+                  <div 
+                    ref={contentRef}
+                    className="max-w-6xl w-full grid grid-cols-8 gap-1 md:gap-3 mx-auto origin-center transition-all duration-300 flex-grow-0"
+                    style={{ transform: `scale(${zoomLevel})` }}
+                  >
+                    {board.slice(0, 32).map((id, i) => <CardVisual key={`real-${i}-${id}`} card={id ? LENORMAND_CARDS.find(c => c.id === id) : null} houseId={i + 1} isSelected={selectedHouse === i} isThemeCard={false} highlightType={getGeometryHighlight(i)} onClick={() => handleHouseSelection(i)} darkMode={darkMode} isManualMode={isManualMode} spreadType="mesa-real" studyModeActive={studyMode.active} isAnimating={isAnimating} />)}
+                    <div className="col-span-8 flex justify-center py-2 md:py-4"><span className="text-[9px] md:text-[11px] font-cinzel font-black tracking-[0.6em] text-slate-500 uppercase opacity-60">VEREDITO</span></div>
+                    <div className="col-span-2"></div>
+                    {board.slice(32, 36).map((id, i) => <CardVisual key={`real-${i+32}-${id}`} card={id ? LENORMAND_CARDS.find(c => c.id === id) : null} houseId={i + 33} isSelected={selectedHouse === i+32} isThemeCard={false} highlightType={getGeometryHighlight(i+32)} onClick={() => handleHouseSelection(i+32)} darkMode={darkMode} isManualMode={isManualMode} spreadType="mesa-real" studyModeActive={studyMode.active} isAnimating={isAnimating} />)}
+                  </div>
+                ) : (
+                  <div 
+                    className="flex items-center justify-center flex-grow min-h-0 w-full landscape:scale-[0.6] sm:landscape:scale-[0.8] lg:landscape:scale-100 origin-center transition-all"
+                  >
+                    <div 
+                      ref={contentRef}
+                      className={`relative w-[28rem] h-[28rem] md:w-[32rem] md:h-[32rem] border rounded-full flex items-center justify-center origin-center transition-all ${darkMode ? 'border-slate-800/20' : 'border-slate-200'}`}
+                      style={{ transform: `scale(${zoomLevel})` }}
+                    >
+                      <div className="absolute w-28 z-20"><CardVisual key={`clock-center-${board[12]}`} card={board[12] ? LENORMAND_CARDS.find(c => c.id === board[12]) : null} houseId={13} isSelected={selectedHouse === 12} isThemeCard={false} highlightType={getGeometryHighlight(12)} onClick={() => handleHouseSelection(12)} darkMode={darkMode} isManualMode={isManualMode} spreadType="relogio" studyModeActive={studyMode.active} isAnimating={isAnimating} /></div>
+                      {board.slice(0, 12).map((id, i) => {
+                        const angle = (i * 30) - 90; const rad = angle * Math.PI / 180; const ox = 40 * Math.cos(rad); const oy = 40 * Math.sin(rad);
+                        return (
+                          <div key={`clock-house-${i}-${id}`} className="absolute w-24 aspect-[3/4.2] -translate-x-1/2 -translate-y-1/2 z-10 overflow-visible" style={{ left: `${50 + ox}%`, top: `${50 + oy}%` }}>
+                            <CardVisual card={id ? LENORMAND_CARDS.find(c => c.id === id) : null} houseId={i + 1} isSelected={selectedHouse === i} isThemeCard={false} highlightType={getGeometryHighlight(i)} onClick={() => handleHouseSelection(i)} darkMode={darkMode} isManualMode={isManualMode} spreadType="relogio" offsetX={`${ox * 8}px`} offsetY={`${oy * 8}px`} studyModeActive={studyMode.active} isAnimating={isAnimating} />
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </>
           )}
 
           {view === 'glossary' && (
@@ -530,12 +726,22 @@ const App: React.FC = () => {
                 <p className="text-slate-400 max-w-2xl mx-auto">Explore a teoria aplicada. Escolha um tópico abaixo para aprender a técnica e clique em "Ver na Prática" para visualizar os destaques nos tabuleiros reais.</p>
               </div>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
-                {FUNDAMENTALS_DATA.slice(0, 2).map((mod) => (
+                {FUNDAMENTALS_DATA.map((mod) => (
                   <div key={`study-${mod.id}`} className="space-y-6">
-                    <div className="flex items-center gap-3 border-b border-indigo-500/20 pb-4">{mod.id === 'f_mesa_real' ? <LayoutGrid className="text-indigo-500" /> : <Clock className="text-indigo-500" />}<h3 className={`text-xl font-cinzel font-bold ${darkMode ? 'text-indigo-100' : 'text-indigo-950'}`}>{mod.title}</h3></div>
+                    <div className="flex items-center gap-3 border-b border-indigo-500/20 pb-4">
+                      {mod.id === 'f_mesa_real' ? <LayoutGrid className="text-indigo-500" /> : <Clock className="text-indigo-500" />}
+                      <h3 className={`text-xl font-cinzel font-bold ${darkMode ? 'text-indigo-100' : 'text-indigo-950'}`}>{mod.title}</h3>
+                    </div>
                     <div className="grid gap-4">
                       {mod.concepts.map((concept, i) => (
-                        <ConceptAccordion key={`study-concept-${concept.title}`} concept={concept} darkMode={darkMode} isOpen={openConceptId === `study-${mod.id}-${i}`} onToggle={() => setOpenConceptId(openConceptId === `study-${mod.id}-${i}` ? null : `study-${mod.id}-${i}`)} onPractice={() => handlePracticeMode(concept.id || concept.title.toLowerCase().split(' ').join('-'), mod.id === 'f_mesa_real' ? 'mesa-real' : 'relogio')} />
+                        <ConceptAccordion 
+                          key={`study-concept-${concept.id || i}`} 
+                          concept={concept} 
+                          darkMode={darkMode} 
+                          isOpen={openConceptId === `study-${mod.id}-${i}`} 
+                          onToggle={() => setOpenConceptId(openConceptId === `study-${mod.id}-${i}` ? null : `study-${mod.id}-${i}`)} 
+                          onPractice={() => handlePracticeMode(concept.id || concept.title.toLowerCase().split(' ').join('-'), concept.practiceTarget || (mod.id === 'f_mesa_real' ? 'mesa-real' : 'relogio'))} 
+                        />
                       ))}
                     </div>
                   </div>
@@ -545,16 +751,103 @@ const App: React.FC = () => {
           )}
 
           {view === 'profile' && (
-            <div className="max-w-2xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-              <div className={`${darkMode ? 'bg-slate-900/40 border-indigo-500/20' : 'bg-white border-slate-200 shadow-xl'} border rounded-[2.5rem] p-10 text-center`}>
+            <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-20">
+              <div className={`${darkMode ? 'bg-slate-900/40 border-indigo-500/20' : 'bg-white border-slate-200 shadow-xl'} border rounded-[2.5rem] p-10 text-center relative`}>
                 <div className="w-24 h-24 mx-auto mb-6 rounded-full bg-indigo-600 flex items-center justify-center text-white text-3xl font-cinzel font-bold shadow-2xl">L</div>
-                <h3 className={`text-2xl font-cinzel font-bold ${darkMode ? 'text-white' : 'text-slate-950'}`}>Estudante Lumina</h3>
-                <p className="text-indigo-600 font-bold uppercase text-[10px] tracking-[0.3em] mt-1">Nível Iniciante • 12 Tiragens</p>
+                
+                <div className="flex items-center justify-center gap-3 mb-2">
+                  <h3 className={`text-2xl font-cinzel font-bold ${darkMode ? 'text-white' : 'text-slate-950'}`}>{userName}</h3>
+                  <button onClick={() => {}} className={`p-1.5 rounded-lg transition-colors ${darkMode ? 'text-slate-500 hover:text-indigo-400' : 'text-slate-400 hover:text-indigo-600'}`}>
+                    <Edit3 size={18} />
+                  </button>
+                </div>
+
+                <p className={`font-bold uppercase text-[10px] tracking-[0.3em] mt-1 ${darkMode ? 'text-indigo-400' : 'text-indigo-600'}`}>Nível Iniciante • 12 Tiragens</p>
                 <div className="grid grid-cols-3 gap-4 mt-10">
                   {[ { label: 'Tiragens', val: '12', icon: <History size={16}/> }, { label: 'Cartas Vistas', val: '36/36', icon: <Layers size={16}/> }, { label: 'Pontuação', val: '450', icon: <Award size={16}/> } ].map((stat, i) => (
                     <div key={i} className={`${darkMode ? 'bg-slate-950/60' : 'bg-slate-50'} p-4 rounded-2xl border ${darkMode ? 'border-white/5' : 'border-slate-100 shadow-sm'}`}><div className="text-indigo-600 mb-2 flex justify-center">{stat.icon}</div><div className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-slate-900'}`}>{stat.val}</div><div className="text-[8px] font-black uppercase text-slate-500">{stat.label}</div></div>
                   ))}
                 </div>
+              </div>
+
+              {/* Quadro de Licença */}
+              <div className={`${darkMode ? 'bg-slate-900/40 border-white/5' : 'bg-white border-slate-200 shadow-lg'} border rounded-[2rem] p-8`}>
+                 <div className="flex items-center gap-3 mb-6">
+                    <div className="p-2 bg-indigo-500/10 rounded-lg text-indigo-500"><ShieldCheck size={20}/></div>
+                    <h4 className={`font-cinzel font-bold text-sm uppercase tracking-widest ${darkMode ? 'text-indigo-100' : 'text-slate-900'}`}>Informações de Licença</h4>
+                 </div>
+                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="space-y-1">
+                       <span className="text-[10px] font-black uppercase text-slate-500 tracking-widest block">Tipo de Licença</span>
+                       <div className={`text-sm font-bold ${darkMode ? 'text-indigo-300' : 'text-indigo-700'}`}>Plano Vitalício (Premium)</div>
+                    </div>
+                    <div className="space-y-1">
+                       <span className="text-[10px] font-black uppercase text-slate-500 tracking-widest block">Data de Início</span>
+                       <div className={`text-sm font-bold ${darkMode ? 'text-slate-200' : 'text-slate-700'}`}>15 de Dezembro, 2023</div>
+                    </div>
+                    <div className="space-y-1">
+                       <span className="text-[10px] font-black uppercase text-slate-500 tracking-widest block">E-mail Cadastrado</span>
+                       <div className={`text-sm font-bold ${darkMode ? 'text-slate-200' : 'text-slate-700'}`}>estudante@lumina.com</div>
+                    </div>
+                 </div>
+              </div>
+
+              {/* Tiragens Salvas */}
+              <div className={`${darkMode ? 'bg-slate-900/40 border-white/5' : 'bg-white border-slate-200 shadow-lg'} border rounded-[2rem] p-8`}>
+                 <div className="flex items-center justify-between mb-6">
+                   <div className="flex items-center gap-3">
+                      <div className="p-2 bg-indigo-500/10 rounded-lg text-indigo-500"><History size={20}/></div>
+                      <h4 className={`font-cinzel font-bold text-sm uppercase tracking-widest ${darkMode ? 'text-indigo-100' : 'text-slate-900'}`}>Minhas Tiragens Salvas</h4>
+                   </div>
+                   <div className="flex items-center gap-4">
+                     <button 
+                       onClick={() => setIsExcludingReadings(!isExcludingReadings)} 
+                       className={`text-[10px] font-black uppercase transition-colors flex items-center gap-1.5 ${isExcludingReadings ? 'text-rose-500' : 'text-indigo-500'} hover:underline`}
+                     >
+                       {isExcludingReadings ? <><CheckCircle2 size={12}/> Concluir</> : <><Edit3 size={12}/> Editar</>}
+                     </button>
+                     <button 
+                        onClick={handleClearAllReadings}
+                        className="text-[10px] font-black uppercase text-rose-500 hover:underline flex items-center gap-1.5"
+                     >
+                        <Trash2 size={12}/> Limpar Tudo
+                     </button>
+                     <button className="text-[10px] font-black uppercase text-indigo-500 hover:underline">Ver todas</button>
+                   </div>
+                 </div>
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {savedReadings.map(reading => (
+                      <div key={reading.id} className={`p-4 rounded-2xl border flex items-center justify-between group cursor-pointer transition-all ${darkMode ? 'bg-slate-950/40 border-white/5 hover:border-indigo-500/30' : 'bg-slate-50 border-slate-100 hover:border-indigo-300'}`}>
+                        <div className="flex items-center gap-4">
+                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${darkMode ? 'bg-slate-800' : 'bg-white border'}`}>
+                             {reading.type === 'mesa-real' ? <LayoutGrid size={20} className="text-indigo-400"/> : <Clock size={20} className="text-amber-400"/>}
+                          </div>
+                          <div>
+                            <div className={`text-sm font-bold ${darkMode ? 'text-white' : 'text-slate-900'}`}>{reading.title}</div>
+                            <div className="text-[10px] text-slate-500">Salvo em {reading.date}</div>
+                          </div>
+                        </div>
+                        <button 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (isExcludingReadings) handleDeleteReading(reading.id);
+                          }}
+                          className={`p-2 rounded-lg transition-colors ${
+                            isExcludingReadings 
+                              ? 'text-rose-500 hover:bg-rose-500/10' 
+                              : darkMode ? 'group-hover:bg-indigo-600 group-hover:text-white text-slate-400' : 'group-hover:bg-indigo-600 group-hover:text-white text-slate-500 shadow-sm'
+                          }`}
+                        >
+                          {isExcludingReadings ? <Trash2 size={18} /> : <ChevronRight size={18} />}
+                        </button>
+                      </div>
+                    ))}
+                    {savedReadings.length === 0 && (
+                      <div className="col-span-2 py-8 text-center opacity-40">
+                         <p className="text-sm">Nenhuma leitura salva.</p>
+                      </div>
+                    )}
+                 </div>
               </div>
             </div>
           )}
@@ -583,6 +876,30 @@ const App: React.FC = () => {
           <>
             <div className={`p-4 border-b flex items-center justify-between shadow-lg h-16 shrink-0 ${darkMode ? '' : 'bg-slate-50 border-slate-200'}`}><button onClick={() => setMentorPanelOpen(false)} className={`p-2 transition-colors ${darkMode ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-950'}`}><ChevronRight size={18} /></button><h2 className={`text-xs font-bold font-cinzel uppercase tracking-[0.2em] ${darkMode ? 'text-indigo-100' : 'text-indigo-950 font-black'}`}>Mentor LUMINA</h2><div className="w-10"></div></div>
             <div className="flex-grow overflow-y-auto custom-scrollbar p-6 space-y-8 pb-32">
+              
+              {/* HISTÓRICO DA 1ª TIRAGEM (Sempre visível se existir) */}
+              {spreadType === 'relogio' && firstDrawHistoryData && (
+                <div className="space-y-4 animate-in slide-in-from-right duration-500 mb-8">
+                  <h4 className={`text-[12px] font-black uppercase text-indigo-600 tracking-[0.3em] border-b pb-2 ${darkMode ? 'border-white/5' : 'border-slate-200'}`}>HISTÓRICO DA 1ª TIRAGEM</h4>
+                  <div className="grid gap-3">
+                     {firstDrawHistoryData.map((item, i) => (
+                       <div key={i} className={`p-3 rounded-xl border ${darkMode ? 'bg-slate-900/40 border-white/5' : 'bg-slate-50 border-slate-200 shadow-sm'}`}>
+                          <div className="flex items-center gap-3">
+                             <div className="w-8 h-10 rounded border border-white/10 overflow-hidden shrink-0 shadow-sm"><img src={CARD_IMAGES[item.card?.id] || FALLBACK_IMAGE} className="w-full h-full object-cover" alt="" /></div>
+                             <div className="flex-grow">
+                                <div className="flex justify-between items-center mb-0.5">
+                                   <span className={`text-[11px] font-bold ${darkMode ? 'text-white' : 'text-slate-950'}`}>{item.card?.name}</span>
+                                   <span className="text-[9px] text-indigo-500 font-black uppercase tracking-widest">{item.house?.name}</span>
+                                </div>
+                                <p className={`text-[10px] italic leading-snug ${darkMode ? 'text-slate-400' : 'text-slate-700'}`}>"{item.card?.briefInterpretation}"</p>
+                             </div>
+                          </div>
+                       </div>
+                     ))}
+                  </div>
+                </div>
+              )}
+
               {selectedHouse !== null && board[selectedHouse] ? (
                 <>
                   <div className={`p-6 rounded-3xl border shadow-lg ${darkMode ? 'bg-slate-950/60 border-indigo-500/20' : 'bg-white border-slate-200'} flex items-center gap-6`}><div className="w-16 md:w-20 aspect-[3/4.2] rounded-xl overflow-hidden border border-slate-700 shrink-0 shadow-lg"><img src={CARD_IMAGES[selectedCard?.id] || FALLBACK_IMAGE} className="w-full h-full object-cover" alt="" /></div><div className="flex-grow"><span className="text-[10px] font-black uppercase text-indigo-500 tracking-widest mb-1 block">CASA {selectedHouse + (spreadType === 'relogio' && selectedHouse < 12 ? 101 : spreadType === 'relogio' ? 113 : 1)}: {currentHouse?.name}</span><h3 className={`text-xl font-cinzel font-bold mb-2 ${darkMode ? 'text-white' : 'text-slate-950'}`}>{selectedCard?.name}</h3><div className="flex items-center gap-4 mt-2"><div className="flex items-center gap-1.5"><div className={`w-2 h-2 rounded-full ${selectedCard?.polarity === Polarity.POSITIVE ? 'bg-emerald-500' : 'bg-rose-500'}`} /><span className={`text-[10px] font-black uppercase ${darkMode ? 'text-slate-200' : 'text-slate-950'}`}>{selectedCard?.polarity}</span></div><div className="flex items-center gap-1.5 text-slate-500"><Clock size={12}/><span className={`text-[10px] font-black uppercase ${darkMode ? 'text-slate-400' : 'text-slate-800 font-bold'}`}>{selectedCard?.timingSpeed}</span></div></div></div></div>
@@ -675,14 +992,38 @@ const App: React.FC = () => {
                       </div>
                     )}
                     {spreadType === 'relogio' && axisDataRelogio && (
-                      <div className="grid gap-4"><div className={`p-4 rounded-2xl border ${darkMode ? 'bg-indigo-500/5 border-indigo-500/20' : 'bg-indigo-50 border-indigo-200 shadow-sm'}`}><h5 className="text-[13px] font-black text-indigo-800 uppercase flex items-center gap-2 mb-2"><Scale size={12}/> Eixo de Oposição (180°)</h5><p className={`text-[13px] font-bold mb-2 ${darkMode ? 'text-slate-300' : 'text-indigo-950'}`}>{axisDataRelogio.axis?.name}</p><p className={`text-[12px] mb-4 ${darkMode ? 'text-slate-400' : 'text-slate-800'}`}>{axisDataRelogio.axis?.description}</p></div></div>
+                      <div className="grid gap-4">
+                        <div className={`p-4 rounded-2xl border ${darkMode ? 'bg-indigo-500/5 border-indigo-500/20' : 'bg-indigo-50 border-indigo-100 shadow-sm'}`}>
+                          <h5 className="text-[13px] font-black text-indigo-800 uppercase flex items-center gap-2 mb-2"><Scale size={12}/> Eixo de Oposição (180°)</h5>
+                          <p className={`text-[13px] font-bold mb-2 ${darkMode ? 'text-slate-300' : 'text-indigo-950'}`}>{axisDataRelogio.axis?.name}</p>
+                          <p className={`text-[12px] mb-4 ${darkMode ? 'text-slate-400' : 'text-slate-800'}`}>{axisDataRelogio.axis?.description}</p>
+                          
+                          {/* Interpretação da carta oposta */}
+                          {axisDataRelogio.oppositeCard && (
+                            <div className={`p-3 rounded-xl border animate-in fade-in duration-500 ${darkMode ? 'bg-black/20 border-white/5' : 'bg-white border-slate-200 shadow-sm'}`}>
+                              <div className="flex justify-between items-center mb-1">
+                                <span className={`text-[11px] font-bold ${darkMode ? 'text-indigo-300' : 'text-indigo-900'}`}>
+                                  {axisDataRelogio.oppositeCard.name} (Oposição)
+                                </span>
+                                <span className="text-[9px] text-slate-500 font-black uppercase">Casa {axisDataRelogio.oppositeHouseId}</span>
+                              </div>
+                              <p className={`text-[11px] italic leading-tight ${darkMode ? 'text-slate-400' : 'text-slate-800'}`}>
+                                "{axisDataRelogio.oppositeCard.briefInterpretation}"
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     )}
+
                     <button onClick={runMentorAnalysis} disabled={isAiLoading} className="w-full bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all shadow-xl mt-6">{isAiLoading ? <Loader2 size={16} className="animate-spin" /> : <Wand2 size={16} />}<span>EXPANDIR LEITURA (MENTOR IA)</span></button>
-                    {cardAnalysis && <div className={`mt-4 rounded-3xl p-6 border shadow-2xl animate-in slide-in-from-bottom-4 duration-700 ${darkMode ? 'bg-slate-950/80 border-slate-800' : 'bg-white border-slate-200'}`}><div className={`prose prose-sm ${darkMode ? 'prose-invert' : ''} text-[12px] leading-relaxed whitespace-pre-wrap ${darkMode ? '' : 'text-slate-950'}`}>{cardAnalysis}</div></div>}
+                    {cardAnalysis && <div className={`mt-4 rounded-3xl p-6 border shadow-2xl animate-in slide-in-from-bottom-4 duration-700 ${darkMode ? 'bg-slate-950/80 border-slate-800' : 'bg-white border-slate-200'}`}><div className={`prose prose-sm ${darkMode ? 'prose-invert' : ''} text-[12px] font-inter leading-relaxed whitespace-pre-wrap ${darkMode ? '' : 'text-slate-950'}`}>{cardAnalysis}</div></div>}
                   </div>
                 </>
               ) : (
-                <div className="h-full flex flex-col items-center justify-center text-center opacity-20 p-8"><Compass size={64} className="mb-6 animate-pulse" /><p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Selecione uma casa ocupada no laboratório.</p></div>
+                !firstDrawHistoryData && (
+                  <div className="h-full flex flex-col items-center justify-center text-center opacity-20 p-8"><Compass size={64} className="mb-6 animate-pulse" /><p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Selecione uma casa ocupada no laboratório.</p></div>
+                )
               )}
             </div>
           </>

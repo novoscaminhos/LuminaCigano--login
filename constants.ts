@@ -27,7 +27,7 @@ export const LENORMAND_CARDS: LenormandCard[] = [
   { id: 15, name: 'Urso', suit: '10 de Paus', polarity: Polarity.NEUTRAL, timingSpeed: Timing.SLOW, timingScale: 'Variável', timingCategory: 'Retarda', keywords: ['Poder', 'Proteção', 'Dominância', 'Ciúmes.'], briefInterpretation: 'Força imponente, autoridade ou proteção possessiva.', interpretationAtOrigin: 'Poder e domínio. Exerce uma proteção pesada ou controle sobre a situação.', symbolicEnergy: 'Terra', description: 'Instinto protetor.' },
   { id: 16, name: 'Estrela', suit: '6 de Copas', polarity: Polarity.POSITIVE, timingSpeed: Timing.MODERATE, timingScale: 'Noite', timingCategory: 'Mantém', keywords: ['Sorte', 'Esperança', 'Brilho', 'Orientação.'], briefInterpretation: 'Conexão com o destino e êxito nos planos.', interpretationAtOrigin: 'Brilho e sorte. Traz proteção espiritual e clareza para os objetivos.', symbolicEnergy: 'Ar', description: 'Proteção espiritual.' },
   { id: 17, name: 'Cegonha', suit: 'Dama de Copas', polarity: Polarity.POSITIVE, timingSpeed: Timing.MODERATE, timingScale: 'Ciclo', timingCategory: 'Mantém', keywords: ['Mudança', 'Novidade', 'Renovação', 'Viagem.'], briefInterpretation: 'Transformação positiva e novos ares chegando.', interpretationAtOrigin: 'Renovação. Promove mudanças de fase, novidades e fertilidade.', symbolicEnergy: 'Ar', description: 'Migração de ideias.' },
-  { id: 18, name: 'Cão', suit: '10 de Copas', polarity: Polarity.POSITIVE, timingSpeed: Timing.SLOW, timingScale: 'Fiel', timingCategory: 'Retarda', keywords: ['Lealdade', 'Apoio', 'Confiança', 'Amizade.'], briefInterpretation: 'Alguém em quem se pode confiar ou suporte fiel.', interpretationAtOrigin: 'Lealdade garantida. Manutenção da confiança e apoio mútuo.', symbolicEnergy: 'Água', description: 'Fidelidade.' },
+  { id: 18, name: 'Cão', suit: '10 de Copas', polarity: Polarity.POSITIVE, timingSpeed: Timing.SLOW, timingScale: 'Fiel', timingCategory: 'Retarda', keywords: ['Lealdade', 'Apoio', 'Confiança', 'Amizade.'], briefInterpretation: 'Alguien em quem se pode confiar ou suporte fiel.', interpretationAtOrigin: 'Lealdade garantida. Manutenção da confiança e apoio mútuo.', symbolicEnergy: 'Água', description: 'Fidelidade.' },
   { id: 19, name: 'Torre', suit: '6 de Espadas', polarity: Polarity.NEUTRAL, timingSpeed: Timing.SLOW, timingScale: 'Tempo', timingCategory: 'Retarda', keywords: ['Isolamento', 'Burocracia', 'Justiça', 'Introspecção.'], briefInterpretation: 'Instituições, solidão necessária ou análise superior.', interpretationAtOrigin: 'Visão elevada. Se eu caio aqui, o tema pede recolhimento ou visão sistêmica.', symbolicEnergy: 'Ar', description: 'Instituição oficial.' },
   { id: 20, name: 'Jardim', suit: '8 de Espadas', polarity: Polarity.POSITIVE, timingSpeed: Timing.MODERATE, timingScale: 'Eventos', timingCategory: 'Mantém', keywords: ['Social', 'Público', 'Coletividade', 'Encontros.'], briefInterpretation: 'A vida fora de casa e a imagem perante os outros.', interpretationAtOrigin: 'Exposição pública. Indica lazer, encontros e o que é visto por todos.', symbolicEnergy: 'Ar', description: 'Espaço público.' },
   { id: 21, name: 'Montanha', suit: '8 de Paus', polarity: Polarity.NEGATIVE, timingSpeed: Timing.SLOW, timingScale: 'Atraso', timingCategory: 'Bloqueia', keywords: ['Bloqueio', 'Desafio', 'Inimigos', 'Frieza.'], briefInterpretation: 'Obstáculo rígido que exige perseverança e esforço.', interpretationAtOrigin: 'Desafios imponentes. Impõe bloqueios e dificuldades de progresso.', symbolicEnergy: 'Terra', description: 'Desafio geológico.' },
@@ -71,7 +71,7 @@ export const LENORMAND_HOUSES: LenormandHouse[] = [
   { id: 20, name: "Jardim", polarity: Polarity.POSITIVE, theme: "Social/Público", technicalDescription: "Expõe o assunto ao público, à vida social e à coletividade.", pedagogicalRule: "Espelhamento: 21 e 12." },
   { id: 21, name: "Montanha", polarity: Polarity.NEGATIVE, theme: "Bloqueio/Dificuldade", technicalDescription: "Impõe bloqueios, grandes desafios, atrasos e dificuldades de progresso.", pedagogicalRule: "Espelhamento: 20 e 13." },
   { id: 22, name: "Caminho", polarity: Polarity.NEUTRAL, theme: "Escolhas/Dualidade", technicalDescription: "Oferece escolhas, bifurcações e múltiplas direções a seguir.", pedagogicalRule: "Espelhamento: 19 e 14." },
-  { id: 23, name: "Ratos", polarity: Polarity.NEGATIVE, theme: "Desgaste/Perda", technicalDescription: "Causa desgaste, estresse, perdas, roubos ou diminuição de energia.", pedagogicalRule: "Espelhamento: 18 e 15." },
+  { id: 23, name: "Ratos", polarity: Polarity.NEGATIVE, theme: "Desgaste/Perda", technicalDescription: "Causa desgaste, estresse, perdas, roubos ou diminução de energia.", pedagogicalRule: "Espelhamento: 18 e 15." },
   { id: 24, name: "Coração", polarity: Polarity.POSITIVE, theme: "Amor/Entrega", technicalDescription: "Coloca a emoção, a paixão e a entrega afetiva no centro da questão.", pedagogicalRule: "Espelhamento: 17 e 16." },
   { id: 25, name: "Anel", polarity: Polarity.POSITIVE, theme: "Compromisso/União", technicalDescription: "Firma compromissos, sela acordos, uniões ou parcerias duradouras.", pedagogicalRule: "Espelhamento: 32 e 01." },
   { id: 26, name: "Livro", polarity: Polarity.NEUTRAL, theme: "Segredo/Estudo", technicalDescription: "Mantagem segredos, revela o oculto ou indica necessidade de estudos.", pedagogicalRule: "Espelhamento: 31 e 02." },
@@ -104,64 +104,49 @@ export const LENORMAND_HOUSES: LenormandHouse[] = [
 export const FUNDAMENTALS_DATA: FundamentalModule[] = [
   {
     id: 'f_mesa_real',
-    title: 'Mesa Real (Grand Tableau)',
+    title: 'Mesa Real e Geometria Cigana',
     description: 'Manual técnico da leitura estrutural e completa.',
-    content: 'A Mesa Real representa o campo completo da vida do consulente, revelando passado, presente, tendências futuras, causas ocultas e desfechos inevitáveis. Cada carta ocupa uma casa fixa, criando uma leitura estrutural e não apenas simbólica.',
+    content: 'A Mesa Real utiliza todas as 36 cartas dispostas em 4 linhas de 8 cartas, com 4 cartas finais. Cada posição possui significado fixo.',
     concepts: [
       { 
-        id: 'mesa-conceito',
-        title: 'O QUE É A MESA REAL', 
+        id: 'gt-overview',
+        title: 'O que é a Mesa Real', 
         text: 'Representa o campo completo da vida, unindo passado, presente e tendências futuras em um mapa estrutural.',
-        details: 'A Mesa Real mostra passado, presente, tendências, causas ocultas e desfechos inevitáveis através da posição fixa das cartas.',
+        details: 'A Mesa Real utiliza todas as 36 cartas dispostas em 4 linhas de 8 cartas, com 4 cartas finais. Cada posição possui significado fixo.',
         practiceTarget: 'mesa-real'
       },
       { 
-        id: 'mesa-moldura',
-        title: 'MOLDURA DA MESA', 
-        text: 'As cartas que cercam a mesa (1, 8, 25, 32).',
+        id: 'gt-frame',
+        title: 'Moldura', 
+        text: 'As casas 1, 8, 25 e 32 formam a moldura. Elas revelam o clima geral da vida do consulente.',
         details: 'Estas cartas mostram o cenário em que a vida acontece, mesmo sem ação direta. Indicam pressões externas e forças fora do controle do consulente.',
         practiceTarget: 'mesa-real'
       },
       { 
-        id: 'mesa-ponte',
-        title: 'PONTE', 
-        text: 'A carta dona da casa revela a causa do evento.',
-        example: 'Se uma carta cai na Casa 24, observe onde a carta 24 está na mesa para achar a origem do acontecimento.',
-        details: 'A técnica da ponte conecta o efeito à causa. Identificar a posição do regente da casa é crucial para entender o "porquê" por trás da leitura.',
+        id: 'gt-mirror',
+        title: 'Espelhamento', 
+        text: 'Cartas em posições opostas revelam equilíbrio, compensações e relações ocultas entre início e fim.',
+        details: 'Revela equilíbrios ocultos, conflitos internos e dinâmicas invisíveis que atuam simultaneamente ao dobrar a mesa.',
         practiceTarget: 'mesa-real'
       },
       { 
-        id: 'mesa-espelho',
-        title: 'ESPELHO', 
-        text: 'Ao "dobrar" a mesa, casas opostas se refletem.',
-        details: 'Revela equilíbrios ocultos, conflitos internos e dinâmicas invisíveis que atuam simultaneamente.',
-        practiceTarget: 'mesa-real'
-      },
-      { 
-        id: 'mesa-cavalo',
-        title: 'CAVALO (MOVIMENTO EM L)', 
-        text: 'Movimento de 2 casas em uma direção + 1 perpendicular.',
+        id: 'gt-knight',
+        title: 'Salto do Cavalo', 
+        text: 'Movimento em L (2 casas + 1). Revela eventos indiretos, fofocas e situações que estão se aproximando.',
         details: 'O cavalo indica notícias, fofocas e acontecimentos inesperados que estão prestes a se manifestar lateralmente.',
         practiceTarget: 'mesa-real'
       },
       { 
-        id: 'mesa-diagonal-superior',
-        title: 'DIAGONAL SUPERIOR (🔺 CAMPO DE ASCENSÃO)', 
-        text: 'Mostra influências externas em crescimento e o que ainda está se formando.',
-        details: 'Aqui vemos o que está subindo, mesmo que ainda não seja visível. Expectativas e projeções futuras ganham força aqui.',
+        id: 'gt-diagonals',
+        title: 'Diagonais', 
+        text: 'A diagonal superior indica crescimento e influências externas. A inferior mostra raízes, sustentação ou desgaste.',
+        details: 'Influências ascendentes e descendentes que modulam a força da carta. O que está subindo (formando) vs o que está na base (sustentando).',
         practiceTarget: 'mesa-real'
       },
       { 
-        id: 'mesa-diagonal-inferior',
-        title: 'DIAGONAL INFERIOR (🟫 CAMPO DE SUSTENTAÇÃO)', 
-        text: 'Revela as raízes do problema, base estrutural e consequências já plantadas.',
-        details: 'O que sustenta ou drena a situação por baixo. São as raízes cármicas ou pragmáticas do tema.',
-        practiceTarget: 'mesa-real'
-      },
-      { 
-        id: 'mesa-veredito',
-        title: 'VEREDITO FINAL (CASAS 33 A 36)', 
-        text: 'Indica o destino inevitável, o conselho final e o encerramento do ciclo.',
+        id: 'gt-veredict',
+        title: 'Veredito Final', 
+        text: 'As casas 33 a 36 mostram o destino inevitável e o conselho final da leitura.',
         details: 'As quatro últimas casas fornecem a síntese final da leitura, destino inevitável e o conselho maior.',
         practiceTarget: 'mesa-real'
       }
@@ -171,63 +156,35 @@ export const FUNDAMENTALS_DATA: FundamentalModule[] = [
     id: 'f_relogio',
     title: 'Relógio Cigano',
     description: 'Estudo da jornada cíclica e estágios de amadurecimento.',
-    content: 'A Tiragem em Relógio organiza os acontecimentos ao longo do tempo, geralmente em ciclos de 12 meses. Cada casa representa um mês ou um estágio de amadurecimento.',
+    content: 'A Tiragem em Relógio organiza 12 cartas em formato circular, representando um ciclo de 12 meses. Cada posição indica um período do ano e uma área específica da vida.',
     concepts: [
       { 
-        id: 'relogio-conceito',
+        id: 'clock-overview',
         title: 'O que é a Tiragem em Relógio', 
         text: 'Ferramenta de diagnóstico temporal progressivo onde cada casa é um mês do ano.',
-        details: 'Cada casa do relógio representa um mês ou fase do ciclo. A leitura mostra não apenas quando algo acontece, mas como o evento amadurece.',
+        details: 'A Tiragem em Relógio organiza 12 cartas em formato circular, representando um ciclo de 12 meses. Cada posição indica um período do ano e uma área específica da vida.',
         practiceTarget: 'relogio'
       },
       { 
-        id: 'relogio-carta-presente',
-        title: 'A CARTA NO CICLO PRINCIPAL', 
-        text: 'Quando a carta foco aparece nas Casas 1 a 12, indica alta probabilidade de manifestação.',
-        example: 'Se a carta foco cai na Casa 5, o evento tende a se concretizar por volta do 5º mês.',
-        details: 'Indica alta probabilidade de manifestação dentro do ciclo atual. A posição aponta o período de maturação.',
+        id: 'clock-temporality',
+        title: 'Temporalidade no Relógio', 
+        text: 'Cada casa corresponde a um mês. A força depende da polaridade e velocidade da carta.',
+        details: 'Cada casa corresponde a um mês. A força do evento depende da polaridade, velocidade da carta e se ela aparece no ciclo principal.',
         practiceTarget: 'relogio'
       },
       { 
-        id: 'relogio-carta-ausente',
-        title: 'AUSÊNCIA NO PRIMEIRO CICLO', 
-        text: 'Indica que a concretização total pode ultrapassar os próximos 12 meses.',
-        details: '⚠️ Atenção: a concretização total pode ultrapassar os próximos 12 meses. Isso indica um processo mais longo e ajustes necessários.',
+        id: 'clock-absence',
+        title: 'Carta Esperada Ausente', 
+        text: 'Indica que a concretização completa ultrapassa o ciclo anual de 12 meses.',
+        details: 'Quando a carta foco não aparece nas 12 casas principais, indica que a concretização completa ultrapassa o ciclo anual. A aparição em tiragens secundárias mostra preparação.',
         practiceTarget: 'relogio'
       },
       { 
-        id: 'relogio-casa-central',
-        title: 'CASA CENTRAL (RELÓGIO)', 
-        text: 'Representa o tema dominante do ciclo e a energia-mãe do período.',
-        details: 'É a vibração que rege todas as demais casas. O tema central que dá o tom de todo o período anual.',
+        id: 'clock-second-draw',
+        title: 'Segunda Tiragem', 
+        text: 'Utiliza as cartas restantes para aprofundar desdobramentos e obstáculos ocultos.',
+        details: 'A segunda tiragem utiliza as cartas restantes para aprofundar desdobramentos, obstáculos ocultos e fases intermediárias do processo.',
         practiceTarget: 'relogio'
-      },
-      { 
-        id: 'relogio-oposicoes',
-        title: 'OPOSIÇÃO', 
-        text: 'Casas opostas indicam tensões entre desejo e realidade.',
-        details: 'Casas opostas revelam conflitos temporais, desafios de equilíbrio e decisões necessárias entre áreas opostas da vida.',
-        practiceTarget: 'relogio'
-      }
-    ]
-  },
-  {
-    id: 'f_temporalidade',
-    title: 'Temporalidade e Ciclos',
-    description: 'Entendendo o tempo não linear no Lenormand.',
-    content: 'No Baralho Cigano, o tempo não é fixo; ele responde à maturação do evento. Uma carta pode indicar início, desenvolvimento, preparação ou conclusão futura.',
-    concepts: [
-      { 
-        id: 'tempo-nao-linear',
-        title: 'TEMPO NÃO LINEAR', 
-        text: 'O tempo é fluido e focado na fase do evento e não apenas no calendário.',
-        details: 'As cartas respondem à maturação energética. O tempo é maturação, não apenas cronologia.'
-      },
-      { 
-        id: 'eventos-atraso',
-        title: 'EVENTOS QUE "ATRASAM"', 
-        text: 'O evento existe no campo, mas ainda não está pronto para se materializar fisicamente.',
-        details: 'A ausência no ciclo principal não significa inexistência, mas sim que o cenário energético ainda não está maduro para a colheita.'
       }
     ]
   }
@@ -235,15 +192,12 @@ export const FUNDAMENTALS_DATA: FundamentalModule[] = [
 
 export const STUDY_BALLOONS: Record<string, StudyBalloon[]> = {
   "mesa-real": [
-    { target: "moldura", title: "Moldura da Mesa", text: "Cartas que mostram o clima geral e influências externas fora do controle direto." },
-    { target: "diagonal-superior", title: "Diagonal Superior", text: "Tendências que estão crescendo, ganhando força e se tornando conscientes." },
-    { target: "diagonal-inferior", title: "Diagonal Inferior", text: "Base do problema, raízes estruturais e consequências já plantadas." },
-    { target: "cavalo", title: "Cavalo", text: "Movimento em L: indica notícias rápidas, fofocas e eventos inesperados vindo lateralmente." },
-    { target: "veredito", title: "Veredito Final", text: "Casas 33-36: destino inevitável, síntese da consulta e o conselho final." }
+    { target: "frame", title: "Moldura", text: "Clima geral da vida do consulente. Casas 1, 8, 25 e 32." },
+    { target: "diagonal", title: "Diagonal", text: "Mostra crescimento ou sustentação da situação através das influências ascendentes e descendentes." },
+    { target: "veredict", title: "Veredito Final", text: "Destino inevitável e conselho. Casas 33 a 36 fornecem a síntese final." }
   ],
   "relogio": [
-    { target: "centro", title: "Carta Central", text: "O tema principal ou energia-mãe que rege e influencia todo o ciclo de 12 meses." },
-    { target: "casas", title: "Casas do Relógio", text: "Cada uma das 12 casas periféricas representa um mês ou estágio de maturação do projeto." },
-    { target: "oposicao", title: "Casas Opostas", text: "Pontos de tensão entre desejo e realidade que exigem escolhas conscientes." }
+    { target: "center", title: "Centro do Relógio", text: "Origem do ciclo anual e energia base da leitura que regula todo o período." },
+    { target: "house", title: "Casa do Mês", text: "Cada posição representa um mês e um tema específico da jornada cíclica." }
   ]
 };
