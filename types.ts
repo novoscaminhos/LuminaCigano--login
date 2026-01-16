@@ -47,6 +47,9 @@ export interface LenormandHouse {
 
 export type SpreadType = 'mesa-real' | 'relogio';
 
+// GeometryFilter type for board filtering techniques
+export type GeometryFilter = 'nenhuma' | 'todas' | 'ponte' | 'cavalo' | 'moldura' | 'veredito' | 'diagonais';
+
 export interface StudyTrack {
   id: string;
   level: StudyLevel;
@@ -60,5 +63,25 @@ export interface FundamentalModule {
   title: string;
   description: string;
   content: string;
-  concepts: { title: string; text: string; example?: string; details?: string }[];
+  concepts: { 
+    title: string; 
+    text: string; 
+    example?: string; 
+    details?: string;
+    practiceTarget?: SpreadType;
+    id?: string;
+  }[];
+}
+
+export interface StudyModeState {
+  active: boolean;
+  topicId: string | null;
+  practiceTarget: 'mesa-real' | 'relogio' | null;
+  splitView: boolean;
+}
+
+export interface StudyBalloon {
+  target: string;
+  title: string;
+  text: string;
 }

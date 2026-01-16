@@ -9,32 +9,17 @@ import {
   Eye, Maximize2, Minimize2, Menu, Save, Download, CreditCard, Activity as ActivityIcon,
   Book, GitMerge, RefreshCw, Scale, ZapOff, Trash2, Calendar, HardDrive, Smartphone, Globe, Share2,
   GraduationCap, PenTool, ClipboardList, BarChart3, Binary, MousePointer2, Plus, Monitor,
-  Crosshair, Frame, CornerDownRight, CheckCircle2
+  Crosshair, Frame, CornerDownRight, CheckCircle2, Lightbulb
 } from 'lucide-react';
 import html2canvas from 'https://esm.sh/html2canvas@1.4.1';
 import { jsPDF } from 'https://esm.sh/jspdf@2.5.1';
 
-import { LENORMAND_CARDS, LENORMAND_HOUSES, FUNDAMENTALS_DATA } from './constants';
-import { Polarity, Timing, LenormandCard, LenormandHouse, SpreadType, StudyLevel, ReadingTheme } from './types';
+import { LENORMAND_CARDS, LENORMAND_HOUSES, FUNDAMENTALS_DATA, STUDY_BALLOONS } from './constants';
+// Added GeometryFilter to imports
+import { Polarity, Timing, LenormandCard, LenormandHouse, SpreadType, StudyLevel, ReadingTheme, StudyModeState, StudyBalloon, GeometryFilter } from './types';
 import { getDetailedCardAnalysis } from './geminiService';
 import * as Geometry from './geometryService';
 import { CARD_IMAGES, FALLBACK_IMAGE, BASE64_FALLBACK } from './cardImages';
-
-// ===============================
-// Interfaces e Tipagem
-// ===============================
-interface SavedReading {
-  id: string;
-  timestamp: number;
-  board: (number | null)[];
-  theme: ReadingTheme;
-  spreadType: SpreadType;
-  title: string;
-  userAnnotations?: Record<number, string>;
-}
-
-type GeometryFilter = 'ponte' | 'cavalo' | 'moldura' | 'veredito' | 'diagonais' | 'todas' | 'nenhuma';
-type ThemeMode = 'light' | 'dark' | 'system';
 
 // ===============================
 // Componentes de Interface
@@ -45,6 +30,26 @@ const NavItem: React.FC<{ icon: React.ReactNode; label: string; active: boolean;
     {!collapsed && <span className="font-medium text-[10px] uppercase font-bold tracking-widest whitespace-nowrap overflow-hidden">{label}</span>}
   </button>
 );
+
+const Balloon: React.FC<{ balloon: StudyBalloon; darkMode: boolean; onDismiss: () => void }> = ({ balloon, darkMode, onDismiss }) => {
+  useEffect(() => {
+    const timer = setTimeout(onDismiss, 5000);
+    return () => clearTimeout(timer);
+  }, [onDismiss]);
+
+  return (
+    <div className={`fixed bottom-20 left-1/2 -translate-x-1/2 z-[100] w-full max-w-sm p-4 rounded-2xl shadow-2xl border animate-in slide-in-from-bottom-4 duration-500 ${darkMode ? 'bg-indigo-950/90 border-indigo-500/30 text-white' : 'bg-white border-indigo-200 text-slate-900 shadow-indigo-500/20'}`}>
+      <div className="flex items-start gap-3">
+        <div className="p-2 bg-indigo-500/20 rounded-lg text-indigo-400 shrink-0"><Lightbulb size={18}/></div>
+        <div>
+          <h4 className="text-xs font-black uppercase tracking-widest mb-1 text-indigo-400">{balloon.title}</h4>
+          <p className="text-[13px] leading-relaxed">{balloon.text}</p>
+        </div>
+        <button onClick={onDismiss} className="ml-auto text-slate-500 hover:text-white transition-colors"><X size={14}/></button>
+      </div>
+    </div>
+  );
+};
 
 const CardVisual: React.FC<{ 
   card: any; 
@@ -59,6 +64,7 @@ const CardVisual: React.FC<{
   spreadType?: SpreadType;
   offsetX?: string;
   offsetY?: string;
+  studyModeActive?: boolean;
 }> = ({ 
   card, 
   houseId, 
@@ -71,7 +77,8 @@ const CardVisual: React.FC<{
   isManualMode,
   spreadType = 'mesa-real',
   offsetX = '0px',
-  offsetY = '0px'
+  offsetY = '0px',
+  studyModeActive = false
 }) => {
   const highlightStyles: Record<string, string> = {
     mirror: 'ring-4 ring-cyan-500/60 border-cyan-400 scale-105 z-10 animate-pulse',
@@ -92,7 +99,7 @@ const CardVisual: React.FC<{
   return (
     <div 
       onClick={onClick} 
-      className={`relative group aspect-[3/4.2] rounded-xl border-2 cursor-pointer transition-all duration-500 overflow-visible shadow-xl ${isSelected ? 'border-indigo-400 ring-4 ring-indigo-400/30 scale-105 z-20' : isThemeCard ? 'border-transparent scale-105 z-20' : highlightType ? `${highlightStyles[highlightType]}` : darkMode ? 'border-slate-800/60 hover:border-slate-600 bg-slate-900/60' : 'border-slate-300 hover:border-slate-400 bg-slate-50'} ${animationClass}`}
+      className={`relative group aspect-[3/4.2] rounded-xl border-2 cursor-pointer transition-all duration-500 overflow-visible shadow-xl ${isSelected ? 'border-indigo-400 ring-4 ring-indigo-400/30 scale-105 z-20' : isThemeCard ? 'border-transparent scale-105 z-20' : highlightType ? `${highlightStyles[highlightType]}` : darkMode ? 'border-slate-800/60 hover:border-slate-600 bg-slate-900/60' : 'border-slate-300 hover:border-slate-400 bg-slate-50'} ${animationClass} ${studyModeActive && !highlightType ? 'opacity-30 scale-95' : ''}`}
       style={{ 
         ...(isThemeCard ? { boxShadow: `0 0 30px ${themeColor}, inset 0 0 15px ${themeColor}` } : {}),
         animationDelay,
@@ -124,8 +131,6 @@ const CardVisual: React.FC<{
             </div>
           )}
         </div>
-        
-        {/* FACE TRASEIRA (VERSO) */}
         <div className="card-face-back"></div>
       </div>
     </div>
@@ -133,36 +138,41 @@ const CardVisual: React.FC<{
 };
 
 const ConceptAccordion: React.FC<{ 
-  concept: { title: string; text: string; example?: string; details?: string }; 
+  concept: { title: string; text: string; example?: string; details?: string; practiceTarget?: string; id?: string }; 
   darkMode: boolean;
   isOpen: boolean;
   onToggle: () => void;
-}> = ({ concept, darkMode, isOpen, onToggle }) => {
+  onPractice?: () => void;
+}> = ({ concept, darkMode, isOpen, onToggle, onPractice }) => {
   return (
     <div className={`${darkMode ? 'bg-slate-900/40 border-white/5' : 'bg-white border-slate-200 shadow-sm'} border rounded-2xl overflow-hidden transition-all duration-300`}>
       <div 
-        onClick={concept.details ? onToggle : undefined} 
-        className={`p-6 ${concept.details ? 'cursor-pointer hover:bg-slate-800/10' : ''} flex flex-col`}
+        onClick={onToggle} 
+        className={`p-6 cursor-pointer hover:bg-slate-800/10 flex flex-col`}
       >
         <div className="flex items-center justify-between mb-2">
           <h4 className={`text-xs font-bold uppercase tracking-widest ${darkMode ? 'text-indigo-400' : 'text-indigo-800'}`}>{concept.title}</h4>
-          {concept.details && (
-            <div className={`${darkMode ? 'text-slate-500' : 'text-slate-400'} transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`}>
-              <ChevronDown size={16} />
-            </div>
-          )}
+          <div className={`${darkMode ? 'text-slate-500' : 'text-slate-400'} transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`}>
+            <ChevronDown size={16} />
+          </div>
         </div>
         <p className={`text-sm leading-relaxed mb-2 ${darkMode ? 'text-slate-300' : 'text-slate-700'}`}>{concept.text}</p>
         {concept.example && <p className="text-xs text-slate-500 italic">Ex: {concept.example}</p>}
       </div>
       
-      {concept.details && (
-        <div className={`overflow-hidden transition-all duration-500 ease-in-out ${isOpen ? 'max-h-[500px] opacity-100' : 'max-h-0 opacity-0'}`}>
-          <div className={`px-6 pb-6 pt-2 border-t ${darkMode ? 'border-white/5 bg-black/10' : 'border-slate-100 bg-slate-50/50'} prose prose-sm max-w-none`}>
-            <div className={`text-[13px] leading-relaxed whitespace-pre-wrap ${darkMode ? 'text-slate-400' : 'text-slate-600'}`}>
-              {concept.details}
-            </div>
+      {isOpen && (
+        <div className={`px-6 pb-6 pt-2 border-t ${darkMode ? 'border-white/5 bg-black/10' : 'border-slate-100 bg-slate-50/50'} animate-in fade-in duration-300`}>
+          <div className={`text-[13px] leading-relaxed whitespace-pre-wrap mb-6 ${darkMode ? 'text-slate-400' : 'text-slate-600'}`}>
+            {concept.details}
           </div>
+          {onPractice && concept.practiceTarget && (
+            <button 
+              onClick={(e) => { e.stopPropagation(); onPractice(); }}
+              className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-lg"
+            >
+              <Eye size={14} /> Ver na Prática
+            </button>
+          )}
         </div>
       )}
     </div>
@@ -177,24 +187,18 @@ const App: React.FC = () => {
   const [mentorPanelOpen, setMentorPanelOpen] = useState(true);
   
   // Lógica de Temas
-  const [themeMode, setThemeMode] = useState<ThemeMode>(() => (localStorage.getItem('lumina_theme') as ThemeMode) || 'system');
+  const [themeMode, setThemeMode] = useState<'light' | 'dark' | 'system'>(() => (localStorage.getItem('lumina_theme') as any) || 'system');
   const [darkMode, setDarkMode] = useState(true);
   const [showThemeMenu, setShowThemeMenu] = useState(false);
 
   useEffect(() => {
     localStorage.setItem('lumina_theme', themeMode);
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-    
     const applyTheme = () => {
-      if (themeMode === 'system') {
-        setDarkMode(mediaQuery.matches);
-      } else {
-        setDarkMode(themeMode === 'dark');
-      }
+      if (themeMode === 'system') setDarkMode(mediaQuery.matches);
+      else setDarkMode(themeMode === 'dark');
     };
-
     applyTheme();
-    
     if (themeMode === 'system') {
       mediaQuery.addEventListener('change', applyTheme);
       return () => mediaQuery.removeEventListener('change', applyTheme);
@@ -214,17 +218,22 @@ const App: React.FC = () => {
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [cardAnalysis, setCardAnalysis] = useState<string | null>(null);
 
-  const [openConceptId, setOpenConceptId] = useState<string | null>(null);
+  // Estado isolado para o Modo Estudo
+  const [studyMode, setStudyMode] = useState<StudyModeState>({
+    active: false,
+    topicId: null,
+    practiceTarget: null,
+    splitView: false
+  });
+  const [activeBalloons, setActiveBalloons] = useState<StudyBalloon[]>([]);
 
+  const [openConceptId, setOpenConceptId] = useState<string | null>(null);
   const boardRef = useRef<HTMLDivElement>(null);
 
   // Inicialização
   useEffect(() => {
-    if (isManualMode) {
-      setBoard(new Array(36).fill(null));
-    } else {
-      setBoard(generateShuffledArray(36));
-    }
+    if (isManualMode) setBoard(new Array(36).fill(null));
+    else setBoard(generateShuffledArray(36));
     setSelectedHouse(null);
     setCardAnalysis(null);
   }, [spreadType, isManualMode]);
@@ -261,61 +270,94 @@ const App: React.FC = () => {
 
   const handleHouseSelection = (index: number) => {
     setSelectedHouse(index);
-    setMentorPanelOpen(true); // Abrir automaticamente o painel do mentor ao selecionar
+    setMentorPanelOpen(true); 
     if (isManualMode) setShowCardPicker(true);
     else setCardAnalysis(null);
   };
 
+  const handlePracticeMode = (topicId: string, target: SpreadType) => {
+    setStudyMode({ active: true, topicId, practiceTarget: target, splitView: false });
+    setSpreadType(target);
+    setView('board');
+    // Forçar seleção neutra se necessário para ver destaques globais
+    if (topicId.includes('moldura') || topicId.includes('veredito') || topicId.includes('relogio')) {
+      setSelectedHouse(null);
+    } else if (selectedHouse === null) {
+      const occupiedIdx = board.findIndex(id => id !== null);
+      if (occupiedIdx !== -1) setSelectedHouse(occupiedIdx);
+    }
+    // Adiciona balão explicativo específico se houver
+    const balloons = STUDY_BALLOONS[target];
+    const matchingBalloon = balloons.find(b => topicId.includes(b.target));
+    if (matchingBalloon) setActiveBalloons([matchingBalloon]);
+  };
+
+  const showDicas = () => {
+    const balloons = STUDY_BALLOONS[spreadType];
+    if (balloons && balloons.length > 0) {
+      const randomBalloon = balloons[Math.floor(Math.random() * balloons.length)];
+      setActiveBalloons([randomBalloon]);
+    }
+  };
+
   const exportToPDF = useCallback(async () => {
     if (!boardRef.current) return;
-    
     try {
-      const canvas = await html2canvas(boardRef.current, {
-        backgroundColor: darkMode ? '#020617' : '#f8fafc',
-        scale: 2,
-        useCORS: true,
-        logging: false
-      });
-      
+      const canvas = await html2canvas(boardRef.current, { backgroundColor: darkMode ? '#020617' : '#f8fafc', scale: 2, useCORS: true, logging: false });
       const imgData = canvas.toDataURL('image/png');
-      const pdf = new jsPDF({
-        orientation: spreadType === 'mesa-real' ? 'l' : 'p',
-        unit: 'px',
-        format: [canvas.width, canvas.height]
-      });
-      
+      const pdf = new jsPDF({ orientation: spreadType === 'mesa-real' ? 'l' : 'p', unit: 'px', format: [canvas.width, canvas.height] });
       pdf.addImage(imgData, 'PNG', 0, 0, canvas.width, canvas.height);
       pdf.save(`Lumina-Leitura-${new Date().getTime()}.pdf`);
-    } catch (err) {
-      console.error("Erro ao exportar PDF:", err);
-    }
+    } catch (err) { console.error("Erro ao exportar PDF:", err); }
   }, [darkMode, spreadType]);
 
   const getGeometryHighlight = (idx: number) => {
-    if (geometryFilters.has('nenhuma') && selectedHouse === null) return null;
-    const showAll = geometryFilters.has('todas');
-    if ((showAll || geometryFilters.has('moldura')) && Geometry.getMoldura().includes(idx)) return 'frame';
-    if ((showAll || geometryFilters.has('veredito')) && idx >= 32) return 'veredito';
-    if (selectedHouse !== null) {
-      if (showAll || geometryFilters.has('ponte')) {
-        const targetId = selectedHouse + 1;
-        const targetIdx = board.findIndex(id => id === (targetId));
-        if (idx === targetIdx) return 'bridge';
-      }
-      if (showAll || geometryFilters.has('cavalo')) if (Geometry.getCavalo(selectedHouse).includes(idx)) return 'knight';
-      if (showAll || geometryFilters.has('diagonais')) {
-        if (Geometry.getDiagonaisSuperiores(selectedHouse).includes(idx)) return 'diag-up';
-        if (Geometry.getDiagonaisInferiores(selectedHouse).includes(idx)) return 'diag-down';
+    if (!geometryFilters.has('nenhuma')) {
+      const showAll = geometryFilters.has('todas');
+      if ((showAll || geometryFilters.has('moldura')) && Geometry.getMoldura().includes(idx)) return 'frame';
+      if ((showAll || geometryFilters.has('veredito')) && idx >= 32) return 'veredito';
+      if (selectedHouse !== null) {
+        if (showAll || geometryFilters.has('ponte')) {
+          const targetId = selectedHouse + 1;
+          const targetIdx = board.findIndex(id => id === (targetId));
+          if (idx === targetIdx) return 'bridge';
+        }
+        if (showAll || geometryFilters.has('cavalo')) if (Geometry.getCavalo(selectedHouse).includes(idx)) return 'knight';
+        if (showAll || geometryFilters.has('diagonais')) {
+          if (Geometry.getDiagonaisSuperiores(selectedHouse).includes(idx)) return 'diag-up';
+          if (Geometry.getDiagonaisInferiores(selectedHouse).includes(idx)) return 'diag-down';
+        }
       }
     }
-    if (spreadType === 'relogio') {
+
+    if (studyMode.active && studyMode.topicId) {
+      const topicId = studyMode.topicId;
+      if (topicId.includes('moldura') && Geometry.getMoldura().includes(idx)) return 'frame';
+      if (topicId.includes('veredito') && idx >= 32) return 'veredito';
+      if (selectedHouse !== null) {
+        if (topicId.includes('ponte')) {
+          const targetId = selectedHouse + 1;
+          const targetIdx = board.findIndex(id => id === (targetId));
+          if (idx === targetIdx) return 'bridge';
+        }
+        if (topicId.includes('cavalo') && Geometry.getCavalo(selectedHouse).includes(idx)) return 'knight';
+        if (topicId.includes('espelho') && Geometry.getEspelhamentos(selectedHouse).includes(idx)) return 'mirror';
+        if (topicId.includes('diagonal-superior') && Geometry.getDiagonaisSuperiores(selectedHouse).includes(idx)) return 'diag-up';
+        if (topicId.includes('diagonal-inferior') && Geometry.getDiagonaisInferiores(selectedHouse).includes(idx)) return 'diag-down';
+      }
+      if (spreadType === 'relogio') {
+        if (topicId.includes('casa-central') && idx === 12) return 'center';
+        if (topicId.includes('oposicoes') && selectedHouse !== null && idx === Geometry.getOposicaoRelogio(selectedHouse)) return 'axis';
+      }
+    }
+
+    if (spreadType === 'relogio' && !studyMode.active) {
       if (idx === 12) return 'center';
       if (selectedHouse !== null && idx === Geometry.getOposicaoRelogio(selectedHouse)) return 'axis';
     }
     return null;
   };
 
-  // Cálculo de dados para o Painel do Mentor
   const bridgeData = useMemo(() => {
     if (selectedHouse === null || spreadType !== 'mesa-real') return null;
     const targetIdx = board.findIndex(id => id === (selectedHouse + 1));
@@ -347,89 +389,49 @@ const App: React.FC = () => {
 
   const runMentorAnalysis = useCallback(async () => {
     if (selectedHouse === null || board[selectedHouse] === null) return;
-    
-    setIsAiLoading(true);
-    setCardAnalysis(null);
-    
+    setIsAiLoading(true); setCardAnalysis(null);
     try {
-      const result = await getDetailedCardAnalysis(
-        board,
-        selectedHouse,
-        readingTheme,
-        spreadType,
-        difficultyLevel
-      );
+      const result = await getDetailedCardAnalysis(board, selectedHouse, readingTheme, spreadType, difficultyLevel);
       setCardAnalysis(result);
-    } catch (error) {
-      console.error("Mentor analysis failed:", error);
-      setCardAnalysis("Erro de conexão com o Mentor.");
-    } finally {
-      setIsAiLoading(false);
-    }
+    } catch (error) { setCardAnalysis("Erro de conexão com o Mentor."); }
+    finally { setIsAiLoading(false); }
   }, [board, selectedHouse, readingTheme, spreadType, difficultyLevel]);
 
   return (
     <div className={`min-h-screen flex flex-col md:flex-row ${darkMode ? 'bg-slate-950 text-slate-200' : 'bg-slate-50 text-slate-900'} transition-colors overflow-hidden font-inter`}>
-      {/* SIDEBAR */}
       <aside className={`flex flex-col border-r ${darkMode ? 'border-slate-800 bg-slate-900' : 'border-slate-200 bg-white shadow-xl'} transition-all duration-300 z-[60] h-screen sticky top-0 ${sidebarCollapsed ? 'w-16' : 'w-64'}`}>
         <div className="p-4 flex items-center justify-between">
            {!sidebarCollapsed && <h1 className={`text-xs font-bold font-cinzel ${darkMode ? 'text-indigo-100' : 'text-indigo-950'}`}>LUMINA</h1>}
            <button onClick={() => setSidebarCollapsed(!sidebarCollapsed)} className={`p-2 rounded-lg ${darkMode ? 'text-slate-500 hover:text-white' : 'text-slate-500 hover:text-slate-900'}`}>{sidebarCollapsed ? <ChevronRight size={18}/> : <ChevronLeft size={18}/>}</button>
         </div>
         <nav className="px-2 space-y-2 overflow-y-auto custom-scrollbar shrink-0">
-          <NavItem icon={<LayoutGrid size={18}/>} label="Mesa Real" active={view === 'board' && spreadType === 'mesa-real'} collapsed={sidebarCollapsed} onClick={() => {setView('board'); setSpreadType('mesa-real'); setIsManualMode(false);}} darkMode={darkMode} />
-          <NavItem icon={<Clock size={18}/>} label="Relógio" active={view === 'board' && spreadType === 'relogio'} collapsed={sidebarCollapsed} onClick={() => {setView('board'); setSpreadType('relogio'); setIsManualMode(false);}} darkMode={darkMode} />
-          <NavItem icon={<Book size={18}/>} label="Glossário" active={view === 'glossary'} collapsed={sidebarCollapsed} onClick={() => setView('glossary')} darkMode={darkMode} />
-          <NavItem icon={<BookOpen size={18}/>} label="Fundamentos" active={view === 'fundamentals'} collapsed={sidebarCollapsed} onClick={() => setView('fundamentals')} darkMode={darkMode} />
-          <NavItem icon={<Edit3 size={18}/>} label="Personalizada" active={view === 'board' && isManualMode} collapsed={sidebarCollapsed} onClick={() => {setView('board'); setIsManualMode(true);}} darkMode={darkMode} />
-          <NavItem icon={<GraduationCap size={18}/>} label="Modo Estudo" active={view === 'study'} collapsed={sidebarCollapsed} onClick={() => setView('study')} darkMode={darkMode} />
+          <NavItem icon={<LayoutGrid size={18}/>} label="Mesa Real" active={view === 'board' && spreadType === 'mesa-real' && !studyMode.active} collapsed={sidebarCollapsed} onClick={() => {setView('board'); setSpreadType('mesa-real'); setIsManualMode(false); setStudyMode(prev => ({ ...prev, active: false }));}} darkMode={darkMode} />
+          <NavItem icon={<Clock size={18}/>} label="Relógio" active={view === 'board' && spreadType === 'relogio' && !studyMode.active} collapsed={sidebarCollapsed} onClick={() => {setView('board'); setSpreadType('relogio'); setIsManualMode(false); setStudyMode(prev => ({ ...prev, active: false }));}} darkMode={darkMode} />
+          <NavItem icon={<Book size={18}/>} label="Glossário" active={view === 'glossary'} collapsed={sidebarCollapsed} onClick={() => {setView('glossary'); setStudyMode(prev => ({ ...prev, active: false }));}} darkMode={darkMode} />
+          <NavItem icon={<BookOpen size={18}/>} label="Fundamentos" active={view === 'fundamentals'} collapsed={sidebarCollapsed} onClick={() => {setView('fundamentals'); setStudyMode(prev => ({ ...prev, active: false }));}} darkMode={darkMode} />
+          <NavItem icon={<Edit3 size={18}/>} label="Personalizada" active={view === 'board' && isManualMode} collapsed={sidebarCollapsed} onClick={() => {setView('board'); setIsManualMode(true); setStudyMode(prev => ({ ...prev, active: false }));}} darkMode={darkMode} />
+          <NavItem icon={<GraduationCap size={18}/>} label="📘 Modo Estudo" active={view === 'study' || (view === 'board' && studyMode.active)} collapsed={sidebarCollapsed} onClick={() => {setView('study'); setStudyMode(prev => ({ ...prev, active: true }));}} darkMode={darkMode} />
         </nav>
-
-        {/* LOGO LUMINA ADICIONADO - AGORA CENTRALIZADO NO ESPAÇO DISPONÍVEL */}
         {!sidebarCollapsed && (
           <div className="flex-grow flex items-center justify-center px-6 min-h-0">
             <div className="relative group transition-all duration-700">
-               {/* Sombra Glow adaptativa ao tema */}
                <div className={`absolute inset-0 rounded-full blur-3xl opacity-25 transition-all duration-700 ${darkMode ? 'bg-indigo-400' : 'bg-indigo-600'}`} />
-               <img 
-                 src="https://kehebufapvrmuzaovnzh.supabase.co/storage/v1/object/public/lenormand-cards/LOGO.png" 
-                 alt="Lumina Logo" 
-                 className={`relative z-10 w-32 h-auto object-contain transition-transform duration-500 hover:scale-105 drop-shadow-[0_10px_20px_rgba(0,0,0,0.4)] ${darkMode ? 'brightness-110 contrast-110' : ''}`}
-               />
+               <img src="https://kehebufapvrmuzaovnzh.supabase.co/storage/v1/object/public/lenormand-cards/LOGO.png" alt="Lumina Logo" className={`relative z-10 w-32 h-auto object-contain transition-transform duration-500 hover:scale-105 drop-shadow-[0_10px_20px_rgba(0,0,0,0.4)] ${darkMode ? 'brightness-110 contrast-110' : ''}`}/>
             </div>
           </div>
         )}
-
         <div className="p-4 border-t border-slate-800 space-y-2 shrink-0">
           {['Salvar', 'Exportar', 'Tema', 'Perfil'].map((label, idx) => (
             <div key={idx} className="relative w-full">
-              <button 
-                onClick={
-                  idx === 1 ? exportToPDF :
-                  idx === 2 ? () => setShowThemeMenu(!showThemeMenu) : 
-                  idx === 3 ? () => setView('profile') : 
-                  undefined
-                }
-                className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl font-bold transition-all ${darkMode ? 'text-indigo-100 bg-indigo-500/10 border border-indigo-500/20 hover:bg-indigo-600 hover:text-white' : 'text-indigo-950 bg-indigo-100 border border-indigo-300 hover:bg-indigo-600 hover:text-white'} ${sidebarCollapsed ? 'justify-center px-0' : ''}`}
-              >
-                {idx === 0 && <Save size={18}/>}
-                {idx === 1 && <Download size={18}/>}
-                {idx === 2 && (themeMode === 'light' ? <Sun size={18}/> : themeMode === 'dark' ? <Moon size={18}/> : <Monitor size={18}/>)}
-                {idx === 3 && <User size={18}/>}
+              <button onClick={idx === 1 ? exportToPDF : idx === 2 ? () => setShowThemeMenu(!showThemeMenu) : idx === 3 ? () => setView('profile') : undefined} className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl font-bold transition-all ${darkMode ? 'text-indigo-100 bg-indigo-500/10 border border-indigo-500/20 hover:bg-indigo-600 hover:text-white' : 'text-indigo-950 bg-indigo-100 border border-indigo-300 hover:bg-indigo-600 hover:text-white'} ${sidebarCollapsed ? 'justify-center px-0' : ''}`}>
+                {idx === 0 && <Save size={18}/>} {idx === 1 && <Download size={18}/>} {idx === 2 && (themeMode === 'light' ? <Sun size={18}/> : themeMode === 'dark' ? <Moon size={18}/> : <Monitor size={18}/>)} {idx === 3 && <User size={18}/>}
                 {!sidebarCollapsed && <span className="text-[10px] uppercase tracking-widest">{label}</span>}
               </button>
-              
               {idx === 2 && showThemeMenu && (
                 <div className={`absolute bottom-full left-0 mb-2 w-full p-2 rounded-xl shadow-2xl border ${darkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'} z-50 animate-in fade-in slide-in-from-bottom-2`}>
-                  <button onClick={() => {setThemeMode('light'); setShowThemeMenu(false)}} className={`w-full flex items-center gap-3 p-2 rounded-lg text-[10px] font-bold uppercase transition-colors ${themeMode === 'light' ? 'bg-indigo-600 text-white' : darkMode ? 'hover:bg-slate-800 text-slate-400' : 'hover:bg-slate-100 text-slate-700'}`}>
-                    <Sun size={14}/> {!sidebarCollapsed && 'Claro'}
-                  </button>
-                  <button onClick={() => {setThemeMode('dark'); setShowThemeMenu(false)}} className={`w-full flex items-center gap-3 p-2 rounded-lg text-[10px] font-bold uppercase transition-colors ${themeMode === 'dark' ? 'bg-indigo-600 text-white' : darkMode ? 'hover:bg-slate-800 text-slate-400' : 'hover:bg-slate-100 text-slate-700'}`}>
-                    <Moon size={14}/> {!sidebarCollapsed && 'Escuro'}
-                  </button>
-                  <button onClick={() => {setThemeMode('system'); setShowThemeMenu(false)}} className={`w-full flex items-center gap-3 p-2 rounded-lg text-[10px] font-bold uppercase transition-colors ${themeMode === 'system' ? 'bg-indigo-600 text-white' : darkMode ? 'hover:bg-slate-800 text-slate-400' : 'hover:bg-slate-100 text-slate-700'}`}>
-                    <Monitor size={14}/> {!sidebarCollapsed && 'Sistema'}
-                  </button>
+                  <button onClick={() => {setThemeMode('light'); setShowThemeMenu(false)}} className={`w-full flex items-center gap-3 p-2 rounded-lg text-[10px] font-bold uppercase transition-colors ${themeMode === 'light' ? 'bg-indigo-600 text-white' : darkMode ? 'hover:bg-slate-800 text-slate-400' : 'hover:bg-slate-100 text-slate-700'}`}><Sun size={14}/> {!sidebarCollapsed && 'Claro'}</button>
+                  <button onClick={() => {setThemeMode('dark'); setShowThemeMenu(false)}} className={`w-full flex items-center gap-3 p-2 rounded-lg text-[10px] font-bold uppercase transition-colors ${themeMode === 'dark' ? 'bg-indigo-600 text-white' : darkMode ? 'hover:bg-slate-800 text-slate-400' : 'hover:bg-slate-100 text-slate-700'}`}><Moon size={14}/> {!sidebarCollapsed && 'Escuro'}</button>
+                  <button onClick={() => {setThemeMode('system'); setShowThemeMenu(false)}} className={`w-full flex items-center gap-3 p-2 rounded-lg text-[10px] font-bold uppercase transition-colors ${themeMode === 'system' ? 'bg-indigo-600 text-white' : darkMode ? 'hover:bg-slate-800 text-slate-400' : 'hover:bg-slate-100 text-slate-700'}`}><Monitor size={14}/> {!sidebarCollapsed && 'Sistema'}</button>
                 </div>
               )}
             </div>
@@ -437,81 +439,54 @@ const App: React.FC = () => {
         </div>
       </aside>
 
-      {/* MAIN CONTENT */}
       <main className="flex-grow flex flex-col h-screen overflow-y-auto custom-scrollbar">
         <header className={`h-16 flex items-center justify-between px-10 border-b sticky top-0 z-20 backdrop-blur-md transition-colors ${darkMode ? 'bg-slate-950/80 border-white/5' : 'bg-white/95 border-slate-200 shadow-sm'}`}>
           <h2 className={`font-cinzel text-sm font-black tracking-widest uppercase ${darkMode ? 'text-white' : 'text-slate-900'}`}>
-            {view === 'board' ? (isManualMode ? 'Mesa Personalizada' : spreadType === 'mesa-real' ? 'Mesa Real' : 'Relógio') : view === 'glossary' ? 'Glossário' : view === 'fundamentals' ? 'Fundamentos' : view === 'profile' ? 'Perfil do Usuário' : 'Estudo'}
+            {view === 'board' ? (studyMode.active ? 'Estudo Prático' : isManualMode ? 'Mesa Personalizada' : spreadType === 'mesa-real' ? 'Mesa Real' : 'Relógio') : view === 'glossary' ? 'Glossário' : view === 'fundamentals' ? 'Fundamentos' : view === 'profile' ? 'Perfil do Usuário' : view === 'study' ? 'Modo Estudo' : 'Estudo'}
           </h2>
           {view === 'board' && (
             <div className="flex items-center gap-2">
-               {isManualMode && (
-                 <div className="flex gap-2 mr-4">
-                   <button onClick={() => setSpreadType('mesa-real')} className={`px-3 py-1 rounded-lg text-[8px] font-bold uppercase transition-all ${spreadType === 'mesa-real' ? 'bg-indigo-500 text-white' : darkMode ? 'bg-slate-800 text-slate-500' : 'bg-slate-200 text-slate-700 font-bold'}`}>Real</button>
-                   <button onClick={() => setSpreadType('relogio')} className={`px-3 py-1 rounded-lg text-[8px] font-bold uppercase transition-all ${spreadType === 'relogio' ? 'bg-indigo-500 text-white' : darkMode ? 'bg-slate-800 text-slate-500' : 'bg-slate-200 text-slate-700 font-bold'}`}>Relógio</button>
+               {studyMode.active && (
+                 <div className={`mr-4 px-4 py-1.5 rounded-full border flex items-center gap-3 ${darkMode ? 'bg-indigo-500/10 border-indigo-500/20 text-indigo-300' : 'bg-indigo-50 border-indigo-200 text-indigo-700'}`}>
+                   <Brain size={16} />
+                   <span className="text-[10px] font-black uppercase tracking-widest">Destaque: {studyMode.topicId?.split('-').join(' ')}</span>
+                   <button onClick={() => setStudyMode(prev => ({ ...prev, active: false, topicId: null }))} className="hover:text-rose-500 transition-colors"><X size={14} /></button>
                  </div>
                )}
-               <div className={`flex p-1 rounded-xl border ${darkMode ? 'bg-slate-800/20 border-white/5' : 'bg-white border-slate-200 shadow-sm'} border shadow-sm`}>
-                 {(['nenhuma', 'ponte', 'cavalo', 'moldura', 'veredito', 'diagonais', 'todas'] as GeometryFilter[]).map(f => (
-                   <button key={f} onClick={() => toggleFilter(f)} className={`px-3 py-1 rounded-lg text-[8px] font-black uppercase transition-all ${geometryFilters.has(f) ? 'bg-indigo-600 text-white' : darkMode ? 'text-slate-500 hover:text-slate-200' : 'text-slate-700 hover:text-slate-950'}`}>{f}</button>
-                 ))}
-               </div>
+               <button onClick={showDicas} className={`flex items-center gap-2 px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${darkMode ? 'bg-amber-500/10 text-amber-400 border border-amber-500/30 hover:bg-amber-500 hover:text-white' : 'bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-600 hover:text-white'} animate-pulse`}><Lightbulb size={14} /> DICAS</button>
+               {!studyMode.active && (
+                 <div className={`flex p-1 rounded-xl border ${darkMode ? 'bg-slate-800/20 border-white/5' : 'bg-white border-slate-200 shadow-sm'} border shadow-sm`}>
+                   {(['nenhuma', 'ponte', 'cavalo', 'moldura', 'veredito', 'diagonais', 'todas'] as any[]).map(f => (
+                     <button key={f} onClick={() => toggleFilter(f as GeometryFilter)} className={`px-3 py-1 rounded-lg text-[8px] font-black uppercase transition-all ${geometryFilters.has(f as GeometryFilter) ? 'bg-indigo-600 text-white' : darkMode ? 'text-slate-500 hover:text-slate-200' : 'text-slate-700 hover:text-slate-950'}`}>{f}</button>
+                   ))}
+                 </div>
+               )}
                <button onClick={() => setBoard(generateShuffledArray(36))} className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase flex items-center gap-2 shadow-xl ml-4"><RotateCcw size={14} /> EMBARALHAR</button>
             </div>
           )}
         </header>
 
         <div className="p-4 md:p-10 flex-grow flex flex-col min-h-0">
+          {activeBalloons.map((b, i) => <Balloon key={i} balloon={b} darkMode={darkMode} onDismiss={() => setActiveBalloons(prev => prev.filter(x => x !== b))} />)}
+          
           {view === 'board' && (
             <div ref={boardRef} className="flex-grow flex flex-col items-center justify-center min-h-0 w-full py-4 overflow-hidden">
               {spreadType === 'mesa-real' ? (
                 <div className="max-w-6xl w-full grid grid-cols-8 gap-1 md:gap-3 mx-auto landscape:scale-[0.8] sm:landscape:scale-[0.9] lg:landscape:scale-100 origin-center transition-all duration-300 flex-grow-0">
-                  {board.slice(0, 32).map((id, i) => <CardVisual key={`real-${i}-${id}`} card={id ? LENORMAND_CARDS.find(c => c.id === id) : null} houseId={i + 1} isSelected={selectedHouse === i} isThemeCard={false} highlightType={getGeometryHighlight(i)} onClick={() => handleHouseSelection(i)} darkMode={darkMode} isManualMode={isManualMode} spreadType="mesa-real" />)}
+                  {board.slice(0, 32).map((id, i) => <CardVisual key={`real-${i}-${id}`} card={id ? LENORMAND_CARDS.find(c => c.id === id) : null} houseId={i + 1} isSelected={selectedHouse === i} isThemeCard={false} highlightType={getGeometryHighlight(i)} onClick={() => handleHouseSelection(i)} darkMode={darkMode} isManualMode={isManualMode} spreadType="mesa-real" studyModeActive={studyMode.active} />)}
                   <div className="col-span-8 flex justify-center py-2 md:py-4"><span className="text-[9px] md:text-[11px] font-cinzel font-black tracking-[0.6em] text-slate-500 uppercase opacity-60">VEREDITO</span></div>
                   <div className="col-span-2"></div>
-                  {board.slice(32, 36).map((id, i) => <CardVisual key={`real-${i+32}-${id}`} card={id ? LENORMAND_CARDS.find(c => c.id === id) : null} houseId={i + 33} isSelected={selectedHouse === i+32} isThemeCard={false} highlightType={getGeometryHighlight(i+32)} onClick={() => handleHouseSelection(i+32)} darkMode={darkMode} isManualMode={isManualMode} spreadType="mesa-real" />)}
+                  {board.slice(32, 36).map((id, i) => <CardVisual key={`real-${i+32}-${id}`} card={id ? LENORMAND_CARDS.find(c => c.id === id) : null} houseId={i + 33} isSelected={selectedHouse === i+32} isThemeCard={false} highlightType={getGeometryHighlight(i+32)} onClick={() => handleHouseSelection(i+32)} darkMode={darkMode} isManualMode={isManualMode} spreadType="mesa-real" studyModeActive={studyMode.active} />)}
                 </div>
               ) : (
                 <div className="flex items-center justify-center flex-grow min-h-0 w-full landscape:scale-[0.6] sm:landscape:scale-[0.8] lg:landscape:scale-100 origin-center transition-all">
                   <div className={`relative w-[28rem] h-[28rem] md:w-[32rem] md:h-[32rem] border rounded-full flex items-center justify-center ${darkMode ? 'border-slate-800/20' : 'border-slate-200'}`}>
-                    <div className="absolute w-28 z-20">
-                      <CardVisual 
-                        key={`clock-center-${board[12]}`}
-                        card={board[12] ? LENORMAND_CARDS.find(c => c.id === board[12]) : null} 
-                        houseId={13} 
-                        isSelected={selectedHouse === 12} 
-                        isThemeCard={false} 
-                        highlightType="center" 
-                        onClick={() => handleHouseSelection(12)} 
-                        darkMode={darkMode} 
-                        isManualMode={isManualMode} 
-                        spreadType="relogio"
-                      />
-                    </div>
+                    <div className="absolute w-28 z-20"><CardVisual key={`clock-center-${board[12]}`} card={board[12] ? LENORMAND_CARDS.find(c => c.id === board[12]) : null} houseId={13} isSelected={selectedHouse === 12} isThemeCard={false} highlightType={getGeometryHighlight(12)} onClick={() => handleHouseSelection(12)} darkMode={darkMode} isManualMode={isManualMode} spreadType="relogio" studyModeActive={studyMode.active} /></div>
                     {board.slice(0, 12).map((id, i) => {
-                      const angle = (i * 30) - 90;
-                      const rad = angle * Math.PI / 180;
-                      const ox = 40 * Math.cos(rad);
-                      const oy = 40 * Math.sin(rad);
+                      const angle = (i * 30) - 90; const rad = angle * Math.PI / 180; const ox = 40 * Math.cos(rad); const oy = 40 * Math.sin(rad);
                       return (
-                        <div 
-                          key={`clock-house-${i}-${id}`} 
-                          className="absolute w-24 aspect-[3/4.2] -translate-x-1/2 -translate-y-1/2 z-10 overflow-visible" 
-                          style={{ left: `${50 + ox}%`, top: `${50 + oy}%` }}
-                        >
-                          <CardVisual 
-                            card={id ? LENORMAND_CARDS.find(c => c.id === id) : null} 
-                            houseId={i + 1} 
-                            isSelected={selectedHouse === i} 
-                            isThemeCard={false} 
-                            highlightType={getGeometryHighlight(i)} 
-                            onClick={() => handleHouseSelection(i)} 
-                            darkMode={darkMode} 
-                            isManualMode={isManualMode} 
-                            spreadType="relogio"
-                            offsetX={`${ox * 8}px`}
-                            offsetY={`${oy * 8}px`}
-                          />
+                        <div key={`clock-house-${i}-${id}`} className="absolute w-24 aspect-[3/4.2] -translate-x-1/2 -translate-y-1/2 z-10 overflow-visible" style={{ left: `${50 + ox}%`, top: `${50 + oy}%` }}>
+                          <CardVisual card={id ? LENORMAND_CARDS.find(c => c.id === id) : null} houseId={i + 1} isSelected={selectedHouse === i} isThemeCard={false} highlightType={getGeometryHighlight(i)} onClick={() => handleHouseSelection(i)} darkMode={darkMode} isManualMode={isManualMode} spreadType="relogio" offsetX={`${ox * 8}px`} offsetY={`${oy * 8}px`} studyModeActive={studyMode.active} />
                         </div>
                       );
                     })}
@@ -540,102 +515,60 @@ const App: React.FC = () => {
             <div className="max-w-4xl mx-auto space-y-12 pb-20">
               {FUNDAMENTALS_DATA.map(mod => (
                 <div key={mod.id} className="space-y-6">
-                  <div>
-                    <h3 className={`text-xl font-cinzel font-bold ${darkMode ? 'text-indigo-100' : 'text-indigo-950'}`}>{mod.title}</h3>
-                    <p className="text-slate-400 text-sm">{mod.description}</p>
-                    <p className="text-slate-500 text-xs mt-1 italic">{mod.content}</p>
-                  </div>
-                  <div className="grid gap-4">
-                    {mod.concepts.map((concept, i) => {
-                      const conceptId = `${mod.id}-c-${i}`;
-                      return (
-                        <ConceptAccordion 
-                          key={conceptId}
-                          concept={concept}
-                          darkMode={darkMode}
-                          isOpen={openConceptId === conceptId}
-                          onToggle={() => setOpenConceptId(openConceptId === conceptId ? null : conceptId)}
-                        />
-                      );
-                    })}
-                  </div>
+                  <div><h3 className={`text-xl font-cinzel font-bold ${darkMode ? 'text-indigo-100' : 'text-indigo-950'}`}>{mod.title}</h3><p className="text-slate-400 text-sm">{mod.description}</p><p className="text-slate-500 text-xs mt-1 italic">{mod.content}</p></div>
+                  <div className="grid gap-4">{mod.concepts.map((concept, i) => <ConceptAccordion key={`${mod.id}-c-${i}`} concept={concept} darkMode={darkMode} isOpen={openConceptId === `${mod.id}-c-${i}`} onToggle={() => setOpenConceptId(openConceptId === `${mod.id}-c-${i}` ? null : `${mod.id}-c-${i}`)} />)}</div>
                 </div>
               ))}
             </div>
           )}
 
           {view === 'study' && (
-            <div className="max-w-4xl mx-auto flex flex-col items-center justify-center min-h-[50vh] text-center opacity-60">
-              <GraduationCap size={64} className="mb-6 text-indigo-500" />
-              <h2 className={`text-xl font-cinzel font-bold mb-2 ${darkMode ? 'text-indigo-100' : 'text-indigo-950'}`}>Modo Estudo Em Construção</h2>
-              <p className="text-slate-400 max-w-sm">Este módulo está sendo atualizado para incluir quizes interativos e trilhas de aprendizado multinível. Use o "Glossário" e "Fundamentos" por enquanto.</p>
+            <div className="max-w-6xl mx-auto space-y-12 pb-20">
+              <div className="text-center mb-12">
+                <div className="w-20 h-20 bg-indigo-600/20 rounded-full flex items-center justify-center mx-auto mb-6 text-indigo-500"><GraduationCap size={40} /></div>
+                <h2 className={`text-3xl font-cinzel font-bold mb-4 ${darkMode ? 'text-indigo-100' : 'text-indigo-950'}`}>Laboratório de Estudos LUMINA</h2>
+                <p className="text-slate-400 max-w-2xl mx-auto">Explore a teoria aplicada. Escolha um tópico abaixo para aprender a técnica e clique em "Ver na Prática" para visualizar os destaques nos tabuleiros reais.</p>
+              </div>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
+                {FUNDAMENTALS_DATA.slice(0, 2).map((mod) => (
+                  <div key={`study-${mod.id}`} className="space-y-6">
+                    <div className="flex items-center gap-3 border-b border-indigo-500/20 pb-4">{mod.id === 'f_mesa_real' ? <LayoutGrid className="text-indigo-500" /> : <Clock className="text-indigo-500" />}<h3 className={`text-xl font-cinzel font-bold ${darkMode ? 'text-indigo-100' : 'text-indigo-950'}`}>{mod.title}</h3></div>
+                    <div className="grid gap-4">
+                      {mod.concepts.map((concept, i) => (
+                        <ConceptAccordion key={`study-concept-${concept.title}`} concept={concept} darkMode={darkMode} isOpen={openConceptId === `study-${mod.id}-${i}`} onToggle={() => setOpenConceptId(openConceptId === `study-${mod.id}-${i}` ? null : `study-${mod.id}-${i}`)} onPractice={() => handlePracticeMode(concept.id || concept.title.toLowerCase().split(' ').join('-'), mod.id === 'f_mesa_real' ? 'mesa-real' : 'relogio')} />
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 
           {view === 'profile' && (
             <div className="max-w-2xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
               <div className={`${darkMode ? 'bg-slate-900/40 border-indigo-500/20' : 'bg-white border-slate-200 shadow-xl'} border rounded-[2.5rem] p-10 text-center`}>
-                <div className="w-24 h-24 mx-auto mb-6 rounded-full bg-indigo-600 flex items-center justify-center text-white text-3xl font-cinzel font-bold shadow-2xl">
-                  L
-                </div>
+                <div className="w-24 h-24 mx-auto mb-6 rounded-full bg-indigo-600 flex items-center justify-center text-white text-3xl font-cinzel font-bold shadow-2xl">L</div>
                 <h3 className={`text-2xl font-cinzel font-bold ${darkMode ? 'text-white' : 'text-slate-950'}`}>Estudante Lumina</h3>
                 <p className="text-indigo-600 font-bold uppercase text-[10px] tracking-[0.3em] mt-1">Nível Iniciante • 12 Tiragens</p>
                 <div className="grid grid-cols-3 gap-4 mt-10">
-                  {[
-                    { label: 'Tiragens', val: '12', icon: <History size={16}/> },
-                    { label: 'Cartas Vistas', val: '36/36', icon: <Layers size={16}/> },
-                    { label: 'Pontuação', val: '450', icon: <Award size={16}/> }
-                  ].map((stat, i) => (
-                    <div key={i} className={`${darkMode ? 'bg-slate-950/60' : 'bg-slate-50'} p-4 rounded-2xl border ${darkMode ? 'border-white/5' : 'border-slate-100 shadow-sm'}`}>
-                      <div className="text-indigo-600 mb-2 flex justify-center">{stat.icon}</div>
-                      <div className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-slate-900'}`}>{stat.val}</div>
-                      <div className="text-[8px] font-black uppercase text-slate-500">{stat.label}</div>
-                    </div>
+                  {[ { label: 'Tiragens', val: '12', icon: <History size={16}/> }, { label: 'Cartas Vistas', val: '36/36', icon: <Layers size={16}/> }, { label: 'Pontuação', val: '450', icon: <Award size={16}/> } ].map((stat, i) => (
+                    <div key={i} className={`${darkMode ? 'bg-slate-950/60' : 'bg-slate-50'} p-4 rounded-2xl border ${darkMode ? 'border-white/5' : 'border-slate-100 shadow-sm'}`}><div className="text-indigo-600 mb-2 flex justify-center">{stat.icon}</div><div className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-slate-900'}`}>{stat.val}</div><div className="text-[8px] font-black uppercase text-slate-500">{stat.label}</div></div>
                   ))}
                 </div>
-              </div>
-              <div className="space-y-4">
-                <h4 className={`text-xs font-black uppercase tracking-widest ${darkMode ? 'text-indigo-400' : 'text-indigo-900'}`}>Últimas Atividades</h4>
-                {[1, 2, 3].map(i => (
-                  <div key={i} className={`${darkMode ? 'bg-slate-900/20 border-white/5' : 'bg-white border-slate-200 shadow-sm'} border p-4 rounded-2xl flex items-center justify-between`}>
-                    <div className="flex items-center gap-4">
-                      <div className="p-2 bg-indigo-500/10 rounded-lg text-indigo-500"><RotateCcw size={16}/></div>
-                      <div>
-                        <p className={`text-xs font-bold ${darkMode ? 'text-white' : 'text-slate-950'}`}>Mesa Real — Geral</p>
-                        <p className="text-[10px] text-slate-500">Há {i} dia(s)</p>
-                      </div>
-                    </div>
-                    <button className="text-[10px] font-black uppercase text-indigo-600 hover:text-indigo-500 font-bold">Ver Detalhes</button>
-                  </div>
-                ))}
               </div>
             </div>
           )}
         </div>
 
-        {/* MODAL PICKER PARA MODO MANUAL */}
         {showCardPicker && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-md">
             <div className="max-w-4xl w-full max-h-[85vh] overflow-y-auto bg-slate-900 border border-slate-800 rounded-[2.5rem] p-8 custom-scrollbar">
-              <div className="flex items-center justify-between mb-8 border-b border-slate-800 pb-4">
-                <h3 className="text-sm font-cinzel font-bold text-indigo-100">Escolha a Carta para Casa {selectedHouse! + 1}</h3>
-                <button onClick={() => setShowCardPicker(false)} className="p-2 text-slate-500 hover:text-white"><X size={24}/></button>
-              </div>
+              <div className="flex items-center justify-between mb-8 border-b border-slate-800 pb-4"><h3 className="text-sm font-cinzel font-bold text-indigo-100">Escolha a Carta para Casa {selectedHouse! + 1}</h3><button onClick={() => setShowCardPicker(false)} className="p-2 text-slate-500 hover:text-white"><X size={24}/></button></div>
               <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-9 gap-3">
                 {LENORMAND_CARDS.map(card => {
                   const isUsed = board.includes(card.id);
                   return (
-                    <div key={card.id} onClick={() => { 
-                      const newBoard = [...board]; 
-                      const prevIdx = newBoard.indexOf(card.id); 
-                      if(prevIdx !== -1) newBoard[prevIdx] = null; 
-                      newBoard[selectedHouse!] = card.id; 
-                      setBoard(newBoard); 
-                      setShowCardPicker(false); 
-                    }} className={`aspect-[3/4.2] rounded-xl border-2 flex flex-col items-center justify-center p-2 cursor-pointer transition-all ${isUsed ? 'opacity-40 grayscale pointer-events-none' : 'border-slate-700 hover:border-indigo-500 bg-slate-800/60'}`}>
-                      <span className="text-[10px] font-black text-slate-400">{card.id}</span>
-                      <span className="text-[7px] font-bold text-center uppercase tracking-tighter mt-1 text-indigo-200">{card.name}</span>
-                    </div>
+                    <div key={card.id} onClick={() => { const newBoard = [...board]; const prevIdx = newBoard.indexOf(card.id); if(prevIdx !== -1) newBoard[prevIdx] = null; newBoard[selectedHouse!] = card.id; setBoard(newBoard); setShowCardPicker(false); }} className={`aspect-[3/4.2] rounded-xl border-2 flex flex-col items-center justify-center p-2 cursor-pointer transition-all ${isUsed ? 'opacity-40 grayscale pointer-events-none' : 'border-slate-700 hover:border-indigo-500 bg-slate-800/60'}`}><span className="text-[10px] font-black text-slate-400">{card.id}</span><span className="text-[7px] font-bold text-center uppercase tracking-tighter mt-1 text-indigo-200">{card.name}</span></div>
                   );
                 })}
               </div>
@@ -644,7 +577,6 @@ const App: React.FC = () => {
         )}
       </main>
 
-      {/* MENTOR PANEL */}
       <aside className={`fixed md:sticky top-0 inset-y-0 right-0 z-[70] md:z-30 h-screen transition-all duration-500 border-l flex flex-col overflow-hidden ${mentorPanelOpen ? 'w-full md:w-[32rem]' : 'w-16'} ${darkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'}`}>
         {!mentorPanelOpen && <div className="flex flex-col items-center py-8 h-full w-16 cursor-pointer" onClick={() => setMentorPanelOpen(true)}><ChevronLeft size={20} className="text-slate-500" /><span className="font-cinzel text-[11px] font-bold uppercase tracking-[0.5em] rotate-[-90deg] origin-center py-12 text-slate-500">MENTOR</span></div>}
         {mentorPanelOpen && (
@@ -653,62 +585,35 @@ const App: React.FC = () => {
             <div className="flex-grow overflow-y-auto custom-scrollbar p-6 space-y-8 pb-32">
               {selectedHouse !== null && board[selectedHouse] ? (
                 <>
-                  {/* IDENTIFICAÇÃO */}
-                  <div className={`p-6 rounded-3xl border shadow-lg ${darkMode ? 'bg-slate-950/60 border-indigo-500/20' : 'bg-white border-slate-200'} flex items-center gap-6`}>
-                    <div className="w-16 md:w-20 aspect-[3/4.2] rounded-xl overflow-hidden border border-slate-700 shrink-0 shadow-lg">
-                      <img src={CARD_IMAGES[selectedCard?.id] || FALLBACK_IMAGE} className="w-full h-full object-cover" alt="" />
-                    </div>
-                    <div className="flex-grow">
-                      <span className="text-[10px] font-black uppercase text-indigo-500 tracking-widest mb-1 block">CASA {selectedHouse + (spreadType === 'relogio' && selectedHouse < 12 ? 101 : spreadType === 'relogio' ? 113 : 1)}: {currentHouse?.name}</span>
-                      <h3 className={`text-xl font-cinzel font-bold mb-2 ${darkMode ? 'text-white' : 'text-slate-950'}`}>{selectedCard?.name}</h3>
-                      <div className="flex items-center gap-4 mt-2">
-                         <div className="flex items-center gap-1.5"><div className={`w-2 h-2 rounded-full ${selectedCard?.polarity === Polarity.POSITIVE ? 'bg-emerald-500' : 'bg-rose-500'}`} /><span className={`text-[10px] font-black uppercase ${darkMode ? 'text-slate-200' : 'text-slate-950'}`}>{selectedCard?.polarity}</span></div>
-                         <div className="flex items-center gap-1.5 text-slate-500"><Clock size={12}/><span className={`text-[10px] font-black uppercase ${darkMode ? 'text-slate-400' : 'text-slate-800 font-bold'}`}>{selectedCard?.timingSpeed}</span></div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* DESCRIÇÃO E PALAVRAS CHAVE */}
-                  <div className="space-y-4">
-                    <div className={`p-4 rounded-2xl border ${darkMode ? 'bg-indigo-500/5 border-indigo-500/10' : 'bg-indigo-50 border-indigo-100 shadow-sm'}`}>
-                      <span className="text-[11px] font-black uppercase text-indigo-600 mb-2 block">Interpretação Base</span>
-                      <p className={`text-[14px] italic leading-relaxed ${darkMode ? 'text-slate-300' : 'text-slate-900 font-medium'}`}>"{selectedCard?.briefInterpretation}"</p>
-                    </div>
-                    <div className="flex flex-wrap gap-2">{selectedCard?.keywords.map((k, i) => <span key={i} className={`px-2 py-1 rounded-lg text-[11px] font-black uppercase tracking-widest ${darkMode ? 'bg-slate-800 text-indigo-400' : 'bg-indigo-100 text-indigo-950 font-bold'}`}>{k}</span>)}</div>
-                  </div>
-
-                  {/* GEOMETRIA PEDAGÓGICA */}
+                  <div className={`p-6 rounded-3xl border shadow-lg ${darkMode ? 'bg-slate-950/60 border-indigo-500/20' : 'bg-white border-slate-200'} flex items-center gap-6`}><div className="w-16 md:w-20 aspect-[3/4.2] rounded-xl overflow-hidden border border-slate-700 shrink-0 shadow-lg"><img src={CARD_IMAGES[selectedCard?.id] || FALLBACK_IMAGE} className="w-full h-full object-cover" alt="" /></div><div className="flex-grow"><span className="text-[10px] font-black uppercase text-indigo-500 tracking-widest mb-1 block">CASA {selectedHouse + (spreadType === 'relogio' && selectedHouse < 12 ? 101 : spreadType === 'relogio' ? 113 : 1)}: {currentHouse?.name}</span><h3 className={`text-xl font-cinzel font-bold mb-2 ${darkMode ? 'text-white' : 'text-slate-950'}`}>{selectedCard?.name}</h3><div className="flex items-center gap-4 mt-2"><div className="flex items-center gap-1.5"><div className={`w-2 h-2 rounded-full ${selectedCard?.polarity === Polarity.POSITIVE ? 'bg-emerald-500' : 'bg-rose-500'}`} /><span className={`text-[10px] font-black uppercase ${darkMode ? 'text-slate-200' : 'text-slate-950'}`}>{selectedCard?.polarity}</span></div><div className="flex items-center gap-1.5 text-slate-500"><Clock size={12}/><span className={`text-[10px] font-black uppercase ${darkMode ? 'text-slate-400' : 'text-slate-800 font-bold'}`}>{selectedCard?.timingSpeed}</span></div></div></div></div>
+                  <div className="space-y-4"><div className={`p-4 rounded-2xl border ${darkMode ? 'bg-indigo-500/5 border-indigo-500/10' : 'bg-indigo-50 border-indigo-100 shadow-sm'}`}><span className="text-[11px] font-black uppercase text-indigo-600 mb-2 block">Interpretação Base</span><p className={`text-[14px] italic leading-relaxed ${darkMode ? 'text-slate-300' : 'text-slate-900 font-medium'}`}>"{selectedCard?.briefInterpretation}"</p></div><div className="flex flex-wrap gap-2">{selectedCard?.keywords.map((k, i) => <span key={i} className={`px-2 py-1 rounded-lg text-[11px] font-black uppercase tracking-widest ${darkMode ? 'bg-slate-800 text-indigo-400' : 'bg-indigo-100 text-indigo-950 font-bold'}`}>{k}</span>)}</div></div>
                   <div className="space-y-6">
                     <h4 className={`text-[12px] font-black uppercase text-indigo-600 tracking-[0.3em] border-b pb-2 ${darkMode ? 'border-white/5' : 'border-slate-200'}`}>GEOMETRIA ESTRUTURAL</h4>
-                    
                     {spreadType === 'mesa-real' && (
                       <div className="grid gap-4">
-                        {/* PONTE DETALHADA */}
                         {bridgeData && (
                           <div className={`p-4 rounded-2xl border ${darkMode ? 'bg-amber-500/5 border-amber-500/20' : 'bg-amber-50 border-amber-200 shadow-sm'}`}>
                             <h5 className="text-[13px] font-black text-amber-700 uppercase flex items-center gap-2 mb-2"><GitMerge size={12}/> Técnica da Ponte</h5>
                             <p className={`text-[13px] leading-snug ${darkMode ? 'text-slate-400' : 'text-slate-900'}`}>O dono da Casa {selectedHouse + 1} ({currentHouse?.name}) está na <span className={`font-bold ${darkMode ? 'text-white' : 'text-slate-950 underline decoration-indigo-300'}`}>Casa {bridgeData.houseId} ({bridgeData.house.name})</span> com a carta <span className={`font-bold ${darkMode ? 'text-white' : 'text-slate-950'}`}>{bridgeData.card?.name}</span>.</p>
-                            <p className={`text-[12px] mt-2 italic ${darkMode ? 'text-slate-500' : 'text-slate-700'}`}>A Casa {bridgeData.houseId} indica que: "{bridgeData.house.technicalDescription}"</p>
+                            <p className={`text-[11px] italic mt-1 ${darkMode ? 'text-slate-500' : 'text-slate-800'}`}>"{bridgeData.card?.briefInterpretation}"</p>
                           </div>
                         )}
-
-                        {/* CAVALOS DETALHADOS */}
                         {knightData.length > 0 && (
                           <div className={`p-4 rounded-2xl border ${darkMode ? 'bg-fuchsia-500/5 border-fuchsia-500/20' : 'bg-fuchsia-50 border-fuchsia-200 shadow-sm'}`}>
                             <h5 className="text-[13px] font-black text-fuchsia-800 uppercase flex items-center gap-2 mb-3"><CornerDownRight size={12}/> Salto do Cavalo</h5>
                             <div className="space-y-2">
                               {knightData.map((item, i) => (
                                 <div key={i} className={`${darkMode ? 'bg-black/20 border-white/5' : 'bg-white border-slate-200 shadow-sm'} p-2 rounded-lg border`}>
-                                  <div className="flex justify-between items-center mb-1"><span className={`text-[13px] font-bold ${darkMode ? 'text-white' : 'text-slate-950'}`}>{item.card?.name}</span><span className="text-[11px] text-slate-600 font-black uppercase">Casa {item.houseId}</span></div>
+                                  <div className="flex justify-between items-center mb-1">
+                                    <span className={`text-[13px] font-bold ${darkMode ? 'text-white' : 'text-slate-950'}`}>{item.card?.name}</span>
+                                    <span className="text-[11px] text-slate-600 font-black uppercase">Casa {item.houseId}</span>
+                                  </div>
                                   <p className={`text-[11px] italic leading-tight ${darkMode ? 'text-slate-400' : 'text-slate-800'}`}>"{item.card?.briefInterpretation}"</p>
                                 </div>
                               ))}
                             </div>
-                            <p className="text-[11px] text-slate-500 mt-2 uppercase font-black">Eventos colaterais e fofocas que cercam o tema.</p>
                           </div>
                         )}
-
-                        {/* DIAGONAIS DETALHADAS */}
                         {(diagonalData.up.length > 0 || diagonalData.down.length > 0) && (
                           <div className={`p-4 rounded-2xl border ${darkMode ? 'bg-orange-500/5 border-orange-500/20' : 'bg-orange-50 border-orange-200 shadow-sm'}`}>
                             <h5 className="text-[13px] font-black text-orange-800 uppercase flex items-center gap-2 mb-3"><MoveDiagonal size={12}/> Eixos Diagonais</h5>
@@ -716,96 +621,63 @@ const App: React.FC = () => {
                               {diagonalData.up.length > 0 && (
                                 <div>
                                   <span className="text-[11px] font-black text-orange-600 uppercase block mb-1">Campo de Ascensão (🔺):</span>
-                                  {diagonalData.up.map((i, idx) => <div key={idx} className={`${darkMode ? 'bg-white/5' : 'bg-white border border-slate-100 shadow-sm'} p-1.5 rounded mb-1`}><span className={`text-[13px] font-bold ${darkMode ? 'text-white' : 'text-slate-950'}`}>{i.card?.name} (C{i.houseId})</span><p className={`text-[11px] italic ${darkMode ? 'text-slate-400' : 'text-slate-800'}`}>"{i.card?.briefInterpretation}"</p></div>)}
+                                  {diagonalData.up.map((i, idx) => (
+                                    <div key={idx} className={`${darkMode ? 'bg-white/5' : 'bg-white border border-slate-100 shadow-sm'} p-1.5 rounded mb-1`}>
+                                      <span className={`text-[13px] font-bold block ${darkMode ? 'text-white' : 'text-slate-950'}`}>{i.card?.name} (C{i.houseId})</span>
+                                      <p className={`text-[11px] italic leading-tight mt-0.5 ${darkMode ? 'text-slate-400' : 'text-slate-800'}`}>"{i.card?.briefInterpretation}"</p>
+                                    </div>
+                                  ))}
                                 </div>
                               )}
                               {diagonalData.down.length > 0 && (
                                 <div>
                                   <span className="text-[11px] font-black text-orange-600 uppercase block mb-1">Campo de Sustentação (🔻):</span>
-                                  {diagonalData.down.map((i, idx) => <div key={idx} className={`${darkMode ? 'bg-white/5' : 'bg-white border border-slate-100 shadow-sm'} p-1.5 rounded mb-1`}><span className={`text-[13px] font-bold ${darkMode ? 'text-white' : 'text-slate-950'}`}>{i.card?.name} (C{i.houseId})</span><p className={`text-[11px] italic ${darkMode ? 'text-slate-400' : 'text-slate-800'}`}>"{i.card?.briefInterpretation}"</p></div>)}
+                                  {diagonalData.down.map((i, idx) => (
+                                    <div key={idx} className={`${darkMode ? 'bg-white/5' : 'bg-white border border-slate-100 shadow-sm'} p-1.5 rounded mb-1`}>
+                                      <span className={`text-[13px] font-bold block ${darkMode ? 'text-white' : 'text-slate-950'}`}>{i.card?.name} (C{i.houseId})</span>
+                                      <p className={`text-[11px] italic leading-tight mt-0.5 ${darkMode ? 'text-slate-400' : 'text-slate-800'}`}>"{i.card?.briefInterpretation}"</p>
+                                    </div>
+                                  ))}
                                 </div>
                               )}
                             </div>
                           </div>
                         )}
-
-                        {/* MOLDURA SEGMENTADA */}
                         {frameData && (
                           <div className={`p-4 rounded-2xl border ${darkMode ? 'bg-indigo-500/5 border-indigo-500/20' : 'bg-indigo-50 border-indigo-200 shadow-sm'}`}>
                             <h5 className="text-[13px] font-black text-indigo-800 uppercase flex items-center gap-2 mb-3"><Frame size={12}/> Posicionamento de Moldura</h5>
                             <div className="space-y-3">
-                              <div><span className="text-[11px] font-black text-indigo-600 uppercase block mb-1">Moldura Superior (1 & 8):</span><div className="grid grid-cols-2 gap-2">{frameData.superior.map((f, i) => f.card && <div key={i} className={`${darkMode ? 'bg-indigo-500/10' : 'bg-white border border-indigo-200 shadow-sm'} p-1.5 rounded`}><span className={`text-[12px] font-bold block ${darkMode ? 'text-white' : 'text-slate-950'}`}>{f.card.name} (C{f.houseId})</span><p className={`text-[11px] italic mt-0.5 leading-tight ${darkMode ? 'text-slate-500' : 'text-slate-800'}`}>"{f.card.briefInterpretation}"</p></div>)}</div></div>
-                              <div><span className="text-[11px] font-black text-indigo-600 uppercase block mb-1">Moldura Inferior (25 & 32):</span><div className="grid grid-cols-2 gap-2">{frameData.inferior.map((f, i) => f.card && <div key={i} className={`${darkMode ? 'bg-indigo-500/10' : 'bg-white border border-indigo-200 shadow-sm'} p-1.5 rounded`}><span className={`text-[12px] font-bold block ${darkMode ? 'text-white' : 'text-slate-950'}`}>{f.card.name} (C{f.houseId})</span><p className={`text-[11px] italic mt-0.5 leading-tight ${darkMode ? 'text-slate-500' : 'text-slate-800'}`}>"{f.card.briefInterpretation}"</p></div>)}</div></div>
+                              <div>
+                                <span className="text-[11px] font-black text-indigo-600 uppercase block mb-1">Moldura Superior (1 & 8):</span>
+                                <div className="grid grid-cols-2 gap-2">
+                                  {frameData.superior.map((f, i) => f.card && (
+                                    <div key={i} className={`${darkMode ? 'bg-indigo-500/10' : 'bg-white border border-indigo-200 shadow-sm'} p-1.5 rounded`}>
+                                      <span className={`text-[12px] font-bold block ${darkMode ? 'text-white' : 'text-slate-950'}`}>{f.card.name} (C{f.houseId})</span>
+                                      <p className={`text-[11px] italic mt-0.5 leading-tight ${darkMode ? 'text-slate-500' : 'text-slate-800'}`}>"{f.card.briefInterpretation}"</p>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                              <div>
+                                <span className="text-[11px] font-black text-indigo-600 uppercase block mb-1">Moldura Inferior (25 & 32):</span>
+                                <div className="grid grid-cols-2 gap-2">
+                                  {frameData.inferior.map((f, i) => f.card && (
+                                    <div key={i} className={`${darkMode ? 'bg-indigo-500/10' : 'bg-white border border-indigo-200 shadow-sm'} p-1.5 rounded`}>
+                                      <span className={`text-[12px] font-bold block ${darkMode ? 'text-white' : 'text-slate-950'}`}>{f.card.name} (C{f.houseId})</span>
+                                      <p className={`text-[11px] italic mt-0.5 leading-tight ${darkMode ? 'text-slate-500' : 'text-slate-800'}`}>"{f.card.briefInterpretation}"</p>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
                             </div>
                           </div>
                         )}
                       </div>
                     )}
-
-                    {/* RELÓGIO DETALHADO */}
                     {spreadType === 'relogio' && axisDataRelogio && (
-                      <div className="grid gap-4">
-                        <div className={`p-4 rounded-2xl border ${darkMode ? 'bg-indigo-500/5 border-indigo-500/20' : 'bg-indigo-50 border-indigo-200 shadow-sm'}`}>
-                          <h5 className="text-[13px] font-black text-indigo-800 uppercase flex items-center gap-2 mb-2"><Scale size={12}/> Eixo de Oposição (180°)</h5>
-                          <p className={`text-[13px] font-bold mb-2 ${darkMode ? 'text-slate-300' : 'text-indigo-950'}`}>{axisDataRelogio.axis?.name}</p>
-                          <p className={`text-[12px] mb-4 ${darkMode ? 'text-slate-400' : 'text-slate-800'}`}>{axisDataRelogio.axis?.description}</p>
-                          <div className={`${darkMode ? 'bg-black/20 border-white/5' : 'bg-white border-slate-200 shadow-sm'} p-3 rounded-xl border`}>
-                            <span className="text-[11px] font-black text-indigo-600 uppercase block mb-1">Carta Oposta na Casa {axisDataRelogio.oppositeHouseId}:</span>
-                            <span className={`text-[13px] font-bold ${darkMode ? 'text-white' : 'text-slate-950'}`}>{axisDataRelogio.oppositeCard?.name || "Vazio"}</span>
-                            <p className={`text-[12px] italic mt-1 ${darkMode ? 'text-slate-500' : 'text-slate-800'}`}>"{axisDataRelogio.oppositeCard?.briefInterpretation || "Nenhuma carta selecionada."}"</p>
-                          </div>
-                          <p className={`text-[12px] mt-4 leading-relaxed font-medium italic ${darkMode ? 'text-slate-500' : 'text-slate-700'}`}>"{axisDataRelogio.axis?.tensionKey}"</p>
-                        </div>
-
-                        {/* LISTA DE TIRAGENS RELÓGIO (COMPLEMENTAR) */}
-                        <div className="space-y-4 mt-6">
-                           <div className={`flex items-center justify-between border-b pb-2 ${darkMode ? 'border-white/5' : 'border-slate-200'}`}>
-                              <h4 className={`text-[12px] font-black uppercase text-indigo-400 tracking-[0.3em]`}>LISTA DE TIRAGENS</h4>
-                              <button 
-                                onClick={() => {
-                                  setBoard(new Array(36).fill(null));
-                                  setSelectedHouse(null);
-                                  setCardAnalysis(null);
-                                }}
-                                className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-[9px] font-black uppercase transition-all ${darkMode ? 'bg-rose-500/10 text-rose-500 hover:bg-rose-500 hover:text-white' : 'bg-rose-50 text-rose-600 hover:bg-rose-600 hover:text-white border border-rose-100'}`}
-                              >
-                                <Trash2 size={12} />
-                                LIMPAR LISTA
-                              </button>
-                           </div>
-                           <div className="grid gap-2">
-                             {LENORMAND_HOUSES.filter(h => h.isClockHouse).map((house, idx) => {
-                               const card1Id = board[idx];
-                               const card2Id = board[idx + 13];
-                               const card1 = LENORMAND_CARDS.find(c => c.id === card1Id);
-                               const card2 = LENORMAND_CARDS.find(c => c.id === card2Id);
-                               return (
-                                 <div key={idx} className={`${darkMode ? 'bg-slate-950/40' : 'bg-white border-slate-100 shadow-sm'} p-3 rounded-xl border border-white/5`}>
-                                   <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">{house.month} — {house.name}</span>
-                                   <div className="flex items-center justify-between mt-1">
-                                      <div className="flex flex-col">
-                                        <span className={`text-[11px] font-bold ${darkMode ? 'text-white' : 'text-slate-900'}`}>{card1?.name}</span>
-                                        <span className="text-[8px] uppercase font-black text-indigo-500">Tiragem 1</span>
-                                      </div>
-                                      <ChevronRight size={12} className="text-slate-700" />
-                                      <div className="flex flex-col text-right">
-                                        <span className={`text-[11px] font-bold ${darkMode ? 'text-white' : 'text-slate-900'}`}>{card2?.name}</span>
-                                        <span className="text-[8px] uppercase font-black text-fuchsia-500">Tiragem 2</span>
-                                      </div>
-                                   </div>
-                                 </div>
-                               );
-                             })}
-                           </div>
-                        </div>
-                      </div>
+                      <div className="grid gap-4"><div className={`p-4 rounded-2xl border ${darkMode ? 'bg-indigo-500/5 border-indigo-500/20' : 'bg-indigo-50 border-indigo-200 shadow-sm'}`}><h5 className="text-[13px] font-black text-indigo-800 uppercase flex items-center gap-2 mb-2"><Scale size={12}/> Eixo de Oposição (180°)</h5><p className={`text-[13px] font-bold mb-2 ${darkMode ? 'text-slate-300' : 'text-indigo-950'}`}>{axisDataRelogio.axis?.name}</p><p className={`text-[12px] mb-4 ${darkMode ? 'text-slate-400' : 'text-slate-800'}`}>{axisDataRelogio.axis?.description}</p></div></div>
                     )}
-
-                    {/* ANÁLISE IA */}
-                    <button onClick={runMentorAnalysis} disabled={isAiLoading} className="w-full bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all shadow-xl mt-6">
-                      {isAiLoading ? <Loader2 size={16} className="animate-spin" /> : <Wand2 size={16} />}
-                      <span>EXPANDIR LEITURA (MENTOR IA)</span>
-                    </button>
+                    <button onClick={runMentorAnalysis} disabled={isAiLoading} className="w-full bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all shadow-xl mt-6">{isAiLoading ? <Loader2 size={16} className="animate-spin" /> : <Wand2 size={16} />}<span>EXPANDIR LEITURA (MENTOR IA)</span></button>
                     {cardAnalysis && <div className={`mt-4 rounded-3xl p-6 border shadow-2xl animate-in slide-in-from-bottom-4 duration-700 ${darkMode ? 'bg-slate-950/80 border-slate-800' : 'bg-white border-slate-200'}`}><div className={`prose prose-sm ${darkMode ? 'prose-invert' : ''} text-[12px] leading-relaxed whitespace-pre-wrap ${darkMode ? '' : 'text-slate-950'}`}>{cardAnalysis}</div></div>}
                   </div>
                 </>
